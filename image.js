@@ -49,7 +49,7 @@ function globalLoad () {
       setGridList(globalGroups, i, j)
       const group = globalGroups[i][j]
       const { list, status } = group
-      if (status === 'unload' && list.length > 0) {
+      if (list.length > 0) {
         group.status = 'loading'
         // 加载图片
         loadImages(list).then(() => {
@@ -89,6 +89,8 @@ function loadImages (list) {
                 --count === 0 && resolve()
               }
             )
+        } else {
+          --count === 0 && resolve()
         }
       })
     }
@@ -399,6 +401,7 @@ export default class Picture extends Nerv.Component {
     src: '',
     mode: 'scaleToFill',
     lazyLoad: false,
+    update: Date.now(),
     onError () {},
     onLoad () {}
   }
@@ -422,7 +425,7 @@ export default class Picture extends Nerv.Component {
   // 当前的图片快照
   snap = {}
   // 强制更新位置
-  forceUpdate = Date.now()
+  forceUpdate
   state = { imageStatus: 'unload' }
   updateImageStatus () { this.setState({ imageStatus: this.snap.status }) }
   // 图片加载成功
@@ -456,14 +459,17 @@ export default class Picture extends Nerv.Component {
     this.props.onError(e)
   }
   record (props = this.props) {
+    // 未挂载成功
+    if (this.$self === null || this.$wrap === null) return
     const { lazyLoad, container = window, mode, src, update, rect } = props
-    if (update !== this.forceUpdate) {
+    const { status = 'unload', imageStyle = {} } = this.snap
+    if (update !== this.forceUpdate && status === 'unload') {
       // 初始化快照
       this.snap = {
         id: this.imageId,
         wrap: this.$wrap,
         image: this.$self,
-        imageStyle: {},
+        imageStyle,
         container,
         mode,
         src,
@@ -485,7 +491,6 @@ export default class Picture extends Nerv.Component {
   $wrap = null
   $self = null
   componentWillUnmount () {}
-  componentWillReceivePops (nextProps) { this.record(nextProps) }
   componentDidMount () {
     this.imageId = `image-id-${Date.now()}-${imageStamp++}`
     // 加载 loading 图片
@@ -509,9 +514,9 @@ export default class Picture extends Nerv.Component {
         this.updateImageStatus()
       }
     )
-    // 将图片记录到队列
     this.record()
   }
+  componentWillReceiveProps (nextProps) { this.record(nextProps) }
   render () {
     const {
       src,
