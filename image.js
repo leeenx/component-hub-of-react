@@ -13,7 +13,6 @@
  */
 import Nerv from 'nervjs'
 import PropTypes from 'prop-types'
-import { isNumber } from 'util';
 
 let imageStamp = 0
 
@@ -312,8 +311,8 @@ function registerPosition (snap) {
     let rect = null
     if (
       snap.rect === null ||
-      !isNumber(snap.rect.width) ||
-      !isNumber(snap.rect.height)
+      Number.isFinite(snap.rect.width) ||
+      Number.isFinite(snap.rect.height)
     ) {
       // snap.rect不存在或信息不全
       const wrapRect = wrap.getBoundingClientRect()
