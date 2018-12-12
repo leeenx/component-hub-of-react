@@ -129,12 +129,14 @@ function fillImage (snap) {
   } = snap
   const imageRatio = imageHeight / imageWidth
   const ratio = height / width
+
   switch (mode) {
     case 'aspectFit':
       if (imageRatio > ratio) {
         // 图片比容器长
         snap.imageStyle = {
           position: 'relative',
+          display: 'block',
           width: `${height / imageRatio}px`,
           height: `${height}px`,
           top: 0,
@@ -144,6 +146,7 @@ function fillImage (snap) {
         // 图片比容器扁
         snap.imageStyle = {
           position: 'relative',
+          display: 'block',
           width: `${width}px`,
           height: `${width * imageRatio}px`,
           top: `${(height - (width * imageRatio)) / 2}px`,
@@ -156,6 +159,7 @@ function fillImage (snap) {
         // 图片比容器长
         snap.imageStyle = {
           position: 'relative',
+          display: 'block',
           width: `${width}px`,
           height: `${width * imageRatio}px`,
           top: `${(height - (width * imageRatio)) / 2}px`,
@@ -165,6 +169,7 @@ function fillImage (snap) {
         // 图片比窗口扁
         snap.imageStyle = {
           position: 'relative',
+          display: 'block',
           width: `${height / imageRatio}px`,
           height: `${height}px`,
           top: 0,
@@ -175,6 +180,7 @@ function fillImage (snap) {
     case 'widthFix':
       snap.imageStyle = {
         position: 'relative',
+        display: 'block',
         width: `${width}px`,
         height: `${width * imageRatio}px`,
         top: 0,
@@ -184,6 +190,7 @@ function fillImage (snap) {
     case 'top':
       snap.imageStyle = {
         position: 'relative',
+        display: 'block',
         top: 0,
         left: `${(width - imageWidth) / 2}px`
       }
@@ -191,6 +198,7 @@ function fillImage (snap) {
     case 'bottom':
       snap.imageStyle = {
         position: 'relative',
+        display: 'block',
         top: `${height - imageHeight}px`,
         left: `${(width - imageWidth) / 2}px`
       }
@@ -198,6 +206,7 @@ function fillImage (snap) {
     case 'center':
       snap.imageStyle = {
         position: 'relative',
+        display: 'block',
         top: `${(height - imageHeight) / 2}px`,
         left: `${(width - imageWidth) / 2}px`
       }
@@ -205,6 +214,7 @@ function fillImage (snap) {
     case 'left':
       snap.imageStyle = {
         position: 'relative',
+        display: 'block',
         top: `${(height - imageHeight) / 2}px`,
         left: 0
       }
@@ -212,6 +222,7 @@ function fillImage (snap) {
     case 'right':
       snap.imageStyle = {
         position: 'relative',
+        display: 'block',
         top: `${(height - imageHeight) / 2}px`,
         left: `${width - imageWidth}px`
       }
@@ -219,6 +230,7 @@ function fillImage (snap) {
     case 'top left':
       snap.imageStyle = {
         position: 'relative',
+        display: 'block',
         top: 0,
         left: 0
       }
@@ -226,6 +238,7 @@ function fillImage (snap) {
     case 'top right':
       snap.imageStyle = {
         position: 'relative',
+        display: 'block',
         top: 0,
         left: `${width - imageWidth}px`
       }
@@ -233,6 +246,7 @@ function fillImage (snap) {
     case 'bottom left':
       snap.imageStyle = {
         position: 'relative',
+        display: 'block',
         top: `${height - imageHeight}px`,
         left: 0
       }
@@ -240,6 +254,7 @@ function fillImage (snap) {
     case 'bottom right':
       snap.imageStyle = {
         position: 'relative',
+        display: 'block',
         top: `${height - imageHeight}px`,
         left: `${width - imageWidth}px`
       }
@@ -247,6 +262,7 @@ function fillImage (snap) {
     case 'scaleToFill':
     default:
       snap.imageStyle = {
+        display: 'block',
         width: `${width}px`,
         height: `${height}px`
       }
@@ -300,6 +316,7 @@ window.addEventListener('resize', handleGlobalResize)
 function registerPosition (snap) {
   const {
     id,
+    src,
     status,
     wrap,
     container = window
@@ -337,6 +354,10 @@ function registerPosition (snap) {
     const column = left / viewportWidth >> 0
     // snap 扩展信息
     Object.assign(snap, { top, left, width, height })
+    if (!src) {
+      // 空链接，不需要加载，保持 loading
+      return
+    }
     // 存入快照
     globalImageSnap[id] = snap
     setGridList(globalGroups, row, column)
@@ -460,7 +481,7 @@ export default class Picture extends Nerv.Component {
   }
   record (props = this.props) {
     // 未挂载成功
-    if (this.$self === null || this.$wrap === null) return
+    if (this.$self === null || this.$wrap === null || !this.imageId) return
     const { lazyLoad, container = window, mode, src, update, rect } = props
     const { status = 'unload', imageStyle = {} } = this.snap
     if (update !== this.forceUpdate && status === 'unload') {
@@ -490,7 +511,6 @@ export default class Picture extends Nerv.Component {
   }
   $wrap = null
   $self = null
-  componentWillUnmount () {}
   componentDidMount () {
     this.imageId = `image-id-${Date.now()}-${imageStamp++}`
     // 加载 loading 图片
@@ -510,13 +530,41 @@ export default class Picture extends Nerv.Component {
           }
         )
         fillImage(placeholdSnap)
-        this.snap.imageStyle = placeholdSnap.imageStyle
+        this.snap.placeholdStyle = placeholdSnap.imageStyle
         this.updateImageStatus()
       }
     )
     this.record()
   }
-  componentWillReceiveProps (nextProps) { this.record(nextProps) }
+  shouldComponentUpdate (nextProps, nextState) {
+    let sameStyle = true
+    for (const key in nextProps.style) {
+      if (nextProps.style[key] !== this.props.style[key]) {
+        sameStyle = false
+        break
+      }
+    }
+    if (sameStyle === true) {
+      for (const key in this.props.style) {
+        if (nextProps.style[key] !== this.props.style[key]) {
+          sameStyle = false
+          break
+        }
+      }
+    }
+    if (
+      sameStyle === true &&
+      nextProps.src === this.props.src &&
+      nextProps.className === this.props.className &&
+      nextProps.mode === this.props.mode &&
+      nextProps.update === this.props.update &&
+      nextState.imageStatus === this.props.imageStatus
+    ) {
+      // 需要校验的属性都相等，不需要更新
+      return false
+    }
+    this.record(nextProps)
+  }
   render () {
     const {
       src,
@@ -526,7 +574,8 @@ export default class Picture extends Nerv.Component {
       className,
       mode
     } = this.props
-    const { imageStyle = {} } = this.snap
+    const { placeholdStyle, status } = this.snap
+    const imageStyle = (status === 'loaded' || status === 'error') ? this.snap.imageStyle : placeholdStyle
     // widthFix 模式下，style.height 会取 imageStyle.height
     if (mode === 'widthFix') {
       style.height = `${imageStyle.height}!important`
@@ -546,7 +595,7 @@ export default class Picture extends Nerv.Component {
       case 'loading':
       default: imageSrc = placehold
     }
-    return <div style={style} className={className} ref={$ => (this.$wrap = $)}>
+    return <div style={style} className={className || ''} ref={$ => (this.$wrap = $)}>
       <img
         src={imageSrc}
         ref={$ => (this.$self = $)}
