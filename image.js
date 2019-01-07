@@ -1,140 +1,92 @@
 /*
- * 模拟微信的 Image 组件
- * 通过 props 来控制细节
- * 参见：https://developers.weixin.qq.com/miniprogram/dev/component/image.html
- * binderror & bindload 在本组件是使用标准的 React 勾子: onError & onLoad
- * update ---- 更新图片位置;本组件只在 componentDidMout 记录坐标信息，但是不排除一些特殊情况需要重新更新
- * group ---- 当前组件的容器，默认是 window。
- * placehold ---- 未加载的占位图
- * placeholdMode ---- 针对 placehold 的模式，参见 mode
- * fail ---- 加载失败的占位图
- * failMode ---- 针对 fail 的模式，参见 error
- * rect ---- 手动指定图片的{ width, height, top, left }，用于提升性能
+ * 模拟微信小程序的 Image 组件
+ * 实现微信小程序的 Image 的全部功能：https://developers.weixin.qq.com/miniprogram/dev/component/image.html
+ * API如下：
+ * src, 与微信小程序相同
+ * mode，与微信小程序相同
+ * lazyLoad, 与微信小程序的 lazy-load 相同
+ * onError，与微信小程序的 binderror 相同
+ * onLoad，与微信小程序的 bindload 相同
+ * 扩展
+ * 通过 Image.setConfig({ config }) 来配置一些额外信息
+ * config 结构如下：
+ * @ loadingImg: { src, mode } ---- 加载中的占位图，src 与 mode 与上面的同名API功能一致
+ * @ errorImg: { src, mode } ---- 加载抢购的占位图，src 与 mode 与上面的同名API功能一致
+ * update，通过改变化 update 值可以更新图片的 boundingClientRect 信息 ---- 如果传入 Date.now，效果同 aways
+ * update === 'aways' 每次 render 都会更新图片的 boundingClientRect 信息 ---- 比较耗性能
+ * 注意事项：display 取 block 值时，请保证宽高
  */
+
 import Nerv from 'nervjs'
 import PropTypes from 'prop-types'
 
-let imageStamp = 0
+// 声明一个 undefine 常量
+const UNDEFINED = (function () {}())
 
-// 视窗大小
-let viewportWidth = document.documentElement.clientWidth
-let viewportHeight = document.documentElement.clientHeight
+// ID 生成器
+const keyGenerator = (function () {
+  let order = 0
+  return () => `key-${order++}`
+}())
 
-// 滚动条位置
-let viewportTop = window.scrollY
-let viewportLeft = window.scrollX
-
-// 全局图片
-const globalImageSnap = {}
-// 全局图片分组 ---- 使用 globalGroups[row][column] 来表示图片的位置
-const globalGroups = []
-
-function setGridList (list, row, column) {
-  if (!list[row]) { list[row] = [] }
-  if (!list[row][column]) { list[row][column] = { status: 'unload', list: [] } }
-}
-
-function globalLoad () {
-  // 视窗尺寸不能为0
-  if (viewportWidth === 0 || viewportHeight === 0) return
-  const row = viewportTop / viewportHeight
-  const rowFrom = Math.floor(row)
-  const rowTo = Math.ceil(row)
-  const column = viewportLeft / viewportWidth
-  const columnFrom = Math.floor(column)
-  const columnTo = Math.ceil(column)
-
-  for (let i = rowFrom; i <= rowTo; ++i) {
-    for (let j = columnFrom; j <= columnTo; ++j) {
-      setGridList(globalGroups, i, j)
-      const group = globalGroups[i][j]
-      const { list, status } = group
-      if (list.length > 0) {
-        group.status = 'loading'
-        // 加载图片
-        loadImages(list).then(() => {
-          // 加载完成
-          group.status = 'unload'
-          // 清空队列
-          list.length = 0
-        })
-      }
-    }
-  }
-}
-
-// 加载过的图片
+// 图片缓存
 const imageCache = {}
-
-// 加载多图
-function loadImages (list) {
-  return new Promise(
-    resolve => {
-      let count = list.length
-      list.forEach(item => {
-        const { src, status, onLoad, onError } = item
-        if (status === 'unload') {
-          item.status = 'loading'
-          loadImage(src)
-            .then(
-              size => {
-                onLoad(size)
-                --count === 0 && resolve()
-              }
-            )
-            .catch(
-              e => {
-                onError(e)
-                // 整体加载不做报错处理
-                --count === 0 && resolve()
-              }
-            )
-        } else {
-          --count === 0 && resolve()
-        }
-      })
-    }
-  )
-}
 
 // 加载单图
 function loadImage (src) {
-  return new Promise(
-    (resolve, reject) => {
-      if (imageCache[src]) {
-        resolve(imageCache[src])
-      } else {
-        const $image = new Image()
-        $image.onload = () => {
-          const { naturalWidth: imageWidth, naturalHeight: imageHeight } = $image
-          // 标记有缓存了
-          imageCache[src] = { imageWidth, imageHeight }
-          resolve(imageCache[src])
-        }
-        $image.onerror = e => reject(e)
-        $image.src = src
+  let cache = imageCache[src]
+  if (!cache) {
+    // 没有缓存
+    cache = new Promise((resolve, reject) => {
+      const $image = new Image()
+      $image.onload = () => {
+        const { naturalWidth: width, naturalHeight: height } = $image
+        resolve({ width, height })
       }
-    }
-  )
+      $image.onerror = e => reject(e)
+      $image.src = src
+    })
+      .then(result => result)
+      .catch(e => e)
+    imageCache[src] = cache
+  }
+  return cache
 }
 
-// 按模式显示图片
-function fillImage (snap) {
+// 加载图片列表
+function loadImageList (...list) {
+  return Promise.all(list.map(src => loadImage(src)))
+}
+
+// 按 mode 显示图片，返回结果样式
+function fitImage (options) {
   const {
     mode,
     width,
     height,
     imageWidth,
     imageHeight
-  } = snap
+  } = options
+
+  if (
+    width === 0 ||
+    height === 0 ||
+    imageWidth === 0 ||
+    imageHeight === 0
+  ) {
+    // 无需要处理
+    return {}
+  }
+
   const imageRatio = imageHeight / imageWidth
   const ratio = height / width
+  let style = {}
 
   switch (mode) {
     case 'aspectFit':
       if (imageRatio > ratio) {
         // 图片比容器长
-        snap.imageStyle = {
+        style = {
           position: 'relative',
           display: 'block',
           width: `${height / imageRatio}px`,
@@ -144,463 +96,764 @@ function fillImage (snap) {
         }
       } else {
         // 图片比容器扁
-        snap.imageStyle = {
-          position: 'relative',
+        style = {
           display: 'block',
           width: `${width}px`,
           height: `${width * imageRatio}px`,
-          top: `${(height - (width * imageRatio)) / 2}px`,
-          left: 0
+          marginTop: `${(height - (width * imageRatio)) / 2}px`,
+          marginLeft: 0
         }
       }
       break
     case 'aspectFill':
       if (imageRatio > ratio) {
         // 图片比容器长
-        snap.imageStyle = {
-          position: 'relative',
+        style = {
           display: 'block',
           width: `${width}px`,
           height: `${width * imageRatio}px`,
-          top: `${(height - (width * imageRatio)) / 2}px`,
-          left: 0
+          marginTop: `${(height - (width * imageRatio)) / 2}px`,
+          marginLeft: 0
         }
       } else {
         // 图片比窗口扁
-        snap.imageStyle = {
-          position: 'relative',
+        style = {
           display: 'block',
           width: `${height / imageRatio}px`,
           height: `${height}px`,
-          top: 0,
-          left: `${(width - (height / imageRatio)) / 2}px`
+          marginTop: 0,
+          marginLeft: `${(width - (height / imageRatio)) / 2}px`
         }
       }
       break
     case 'widthFix':
-      snap.imageStyle = {
-        position: 'relative',
+      style = {
         display: 'block',
         width: `${width}px`,
-        height: `${width * imageRatio}px`,
-        top: 0,
-        left: 0
+        height: 'auto',
+        marginTop: 0,
+        marginLeft: 0
       }
       break
     case 'top':
-      snap.imageStyle = {
-        position: 'relative',
+      style = {
         display: 'block',
-        top: 0,
-        left: `${(width - imageWidth) / 2}px`
+        marginTop: 0,
+        marginLeft: `${(width - imageWidth) / 2}px`
       }
       break
     case 'bottom':
-      snap.imageStyle = {
-        position: 'relative',
+      style = {
         display: 'block',
-        top: `${height - imageHeight}px`,
-        left: `${(width - imageWidth) / 2}px`
+        marginTop: `${height - imageHeight}px`,
+        marginLeft: `${(width - imageWidth) / 2}px`
       }
       break
     case 'center':
-      snap.imageStyle = {
-        position: 'relative',
+      style = {
         display: 'block',
-        top: `${(height - imageHeight) / 2}px`,
-        left: `${(width - imageWidth) / 2}px`
+        marginTop: `${(height - imageHeight) / 2}px`,
+        marginLeft: `${(width - imageWidth) / 2}px`
       }
       break
     case 'left':
-      snap.imageStyle = {
-        position: 'relative',
+      style = {
         display: 'block',
-        top: `${(height - imageHeight) / 2}px`,
-        left: 0
+        marginTop: `${(height - imageHeight) / 2}px`,
+        marginLeft: 0
       }
       break
     case 'right':
-      snap.imageStyle = {
-        position: 'relative',
+      style = {
         display: 'block',
-        top: `${(height - imageHeight) / 2}px`,
-        left: `${width - imageWidth}px`
+        marginTop: `${(height - imageHeight) / 2}px`,
+        marginLeft: `${width - imageWidth}px`
       }
       break
     case 'top left':
-      snap.imageStyle = {
-        position: 'relative',
+      style = {
         display: 'block',
-        top: 0,
-        left: 0
+        marginTop: 0,
+        marginLeft: 0
       }
       break
     case 'top right':
-      snap.imageStyle = {
-        position: 'relative',
+      style = {
         display: 'block',
-        top: 0,
-        left: `${width - imageWidth}px`
+        marginTop: 0,
+        marginLeft: `${width - imageWidth}px`
       }
       break
     case 'bottom left':
-      snap.imageStyle = {
-        position: 'relative',
+      style = {
         display: 'block',
-        top: `${height - imageHeight}px`,
-        left: 0
+        marginTop: `${height - imageHeight}px`,
+        marginLeft: 0
       }
       break
     case 'bottom right':
-      snap.imageStyle = {
-        position: 'relative',
+      style = {
         display: 'block',
-        top: `${height - imageHeight}px`,
-        left: `${width - imageWidth}px`
+        marginTop: `${height - imageHeight}px`,
+        marginLeft: `${width - imageWidth}px`
       }
       break
     case 'scaleToFill':
     default:
-      snap.imageStyle = {
+      style = {
         display: 'block',
         width: `${width}px`,
         height: `${height}px`
       }
   }
+  return style
 }
 
-function handleGlobalScroll () {
-  viewportTop = window.scrollY
-  viewportLeft = window.scrollX
-  globalLoad()
-}
+// 图片快照
+const imageSnaps = {}
 
-const handleGlobalResize = (function () {
-  let waiting = false
-  let update = true
-  function reRegisterPosition () {
-    viewportWidth = document.documentElement.clientWidth
-    viewportHeight = document.documentElement.clientHeight
-    // 更新 globalGroups 的位置
-    globalGroups.length = 0
-    for (const id in globalImageSnap) {
-      const snap = globalImageSnap[id]
-      registerPosition(snap)
+// 注册图片
+function register ({
+  id,
+  mode,
+  $self,
+  $group,
+  src,
+  onLoad,
+  onLoadStart,
+  onError
+}) {
+  const prevSnap = imageSnaps[id]
+  // 是否需要重新生成快照
+  let needNewSnap = prevSnap === UNDEFINED
+  if (needNewSnap === false) {
+    if (src !== prevSnap.src) {
+      // 「路径」变了，表示快照需要重新生成
+      needNewSnap = true
     }
-  }
-  return function () {
-    // 做一个性能节流
-    if (waiting === false && update === true) {
-      waiting = true
-      update = false
-      // 第一次是立即执行
-      reRegisterPosition()
-      // 做一个0.5延迟
-      setTimeout(() => {
-        update === true && reRegisterPosition()
-        waiting = false
-      }, 500)
-    } else {
-      update = true
-    }
-  }
-}())
-
-// 监听全局滚动
-window.addEventListener('scroll', handleGlobalScroll)
-
-// resize
-window.addEventListener('resize', handleGlobalResize)
-
-// 注册位置
-function registerPosition (snap) {
-  const {
-    id,
-    src,
-    status,
-    wrap,
-    container = window
-  } = snap
-  if (status !== 'unload') {
-    // 未加载的图片才需要重新注册位置
-    return
-  }
-  if (container === window) {
-    // rect 对象
-    let rect = null
     if (
-      snap.rect === null ||
-      Number.isFinite(snap.rect.width) ||
-      Number.isFinite(snap.rect.height)
+      src !== prevSnap.src ||
+      $group !== prevSnap.$group
     ) {
-      // snap.rect不存在或信息不全
-      const wrapRect = wrap.getBoundingClientRect()
-      rect = Object.assign(
-        {},
-        snap.rect,
-        {
-          top: wrapRect.top + viewportTop,
-          left: wrapRect.left + viewportLeft,
-          width: wrapRect.width,
-          height: wrapRect.height
-        }
-      )
-      if (snap.rect !== null) snap.rect = rect
-    } else {
-      rect = snap.rect
+      // 「路径」或「组」有变化，从组中删除
+      removeSnapFromGroup(prevSnap)
     }
-    const { top, left, width, height } = rect
-    const row = top / viewportHeight >> 0
-    const column = left / viewportWidth >> 0
-    // snap 扩展信息
-    Object.assign(snap, { top, left, width, height })
-    if (!src) {
-      // 空链接，不需要加载，保持 loading
+  }
+  if (needNewSnap === true) {
+    const rect = {}
+    // 创建新的快照
+    imageSnaps[id] = {
+      id,
+      mode,
+      src,
+      $self,
+      $group,
+      rect,
+      status: 'unload',
+      load () {
+        if (this.status !== 'unload') return
+        this.status = 'loading'
+        onLoadStart(rect)
+        loadImage(src)
+          .then(
+            imageRect => onLoad(imageRect)
+          )
+          .catch(() => onError())
+      }
+    }
+  }
+  const snap = imageSnaps[id]
+  // 生成/更新自己的 boundingRect
+  const { top, left, width, height } = $self.getBoundingClientRect()
+  Object.assign(snap.rect, { top, left, width, height })
+  // 将快照加到对应的group
+  addSnapToGroup(snap)
+  return snap.rect
+}
+
+// 按 group 来存图片快照
+const groupInfoSet = new Map()
+
+// groupInfo 对象
+class GroupInfo {
+  static waitTime = 300
+  constructor ($group) {
+    this.$group = $group
+    this.update()
+    // 监听滚动
+    $group.addEventListener('scroll', this.handleScroll)
+  }
+  x = 0
+  y = 0
+  nextX = 0
+  nextY = 0
+  wait = false
+  rect = {}
+  // 未加载图片快照列表
+  unloadSnaps = {}
+  // 分屏网格
+  grid = []
+
+  // 添加 snap
+  addSnap (snap) {
+    const { id } = snap
+    // 按 id 存储
+    this.unloadSnaps[id] = snap
+  }
+
+  // 删除 snap
+  removeSnap (snap) {
+    const { id } = snap
+    delete this.unloadSnaps[id]
+  }
+
+  // 填充网格的单元格
+  setCell (row, col, snap) {
+    const { grid } = this
+    if (grid[row] === UNDEFINED) {
+      grid[row] = []
+    }
+    if (grid[row][col] === UNDEFINED) {
+      grid[row][col] = []
+    }
+    grid[row][col].push(snap)
+  }
+
+  // 加载单元格的快照
+  loadCell (row, col) {
+    const { grid } = this
+    if (
+      grid[row] === UNDEFINED ||
+      grid[row][col] === UNDEFINED ||
+      grid[row][col].length === 0
+    ) {
+      // 单元格下没有图片
       return
     }
-    // 存入快照
-    globalImageSnap[id] = snap
-    setGridList(globalGroups, row, column)
-    globalGroups[row][column].list.push(snap)
-    // 更新加载
-    updateLoadImages(globalLoad)
-  } else {
-    // 局部
+    const cell = grid[row][col]
+    cell.forEach(snap => snap.load())
+    // 清空单元格
+    cell.length = []
   }
-}
 
-// 准备下次被调用的 handleScroll 队列
-const handleScrollQueue = []
-
-const triggerUpdateScroll = (function () {
-  let waiting = false
-  return function () {
-    if (waiting === false) {
-      // 状态切换到等待更新中
-      waiting = true
-      // nextTick 更新
-      setTimeout(() => {
-        handleScrollQueue.forEach(item => item())
-      }, 0)
-    } else {
-      waiting = false
+  // 更新网络
+  updateGrid () {
+    const {
+      unloadSnaps,
+      grid,
+      x,
+      y,
+      rect: {
+        width,
+        height
+      }
+    } = this
+    // 清空网格
+    grid.length = []
+    for (const name in unloadSnaps) {
+      const snap = unloadSnaps[name]
+      const {
+        rect: {
+          top: snapTop = 0,
+          left: snapLeft = 0
+        }
+      } = snap
+      // 相对于容器的坐标
+      const relative = {
+        x: snapLeft - x,
+        y: snapTop - y
+      }
+      const row = Math.floor(relative.y / height)
+      const col = Math.floor(relative.x / width)
+      this.setCell(row, col, snap)
     }
   }
-}())
 
-// 更新滚动 ---- 合并滚动更新
-function updateLoadImages (handleScroll) {
-  handleScrollQueue.includes(handleScroll) || handleScrollQueue.push(handleScroll)
-  // 触发更新
-  triggerUpdateScroll()
+  // group 更新
+  update () {
+    // 等待更新中
+    if (this.updating === true) return
+    // 更新合并
+    this.updating = true
+    Promise.resolve().then(
+      () => {
+        const { $group } = this
+        // 更新 $group 的 boundingRect
+        this.rect = (
+          $group === window ?
+            {
+              top: 0,
+              left: 0,
+              width: document.documentElement.clientWidth,
+              height: document.documentElement.clientHeight
+            } :
+            $group.getBoundingClientRect()
+        )
+        this.updateGrid()
+        this.wait = false
+        this.updating = false
+        // 滚动条坐标
+        this.updatePosition()
+      }
+    )
+  }
+
+  // 更新滚动位置
+  updatePosition () {
+    const {
+      wait,
+      nextX,
+      nextY,
+      x,
+      y,
+      rect: {
+        width,
+        height
+      }
+    } = this
+    const waitTime = GroupInfo.waitTime
+    if (wait === false) {
+      // 非等待中
+      this.wait = true
+      this.x = nextX
+      this.y = nextY
+
+      // 按屏加载
+      const row = nextY / height
+      const col = nextX / width
+
+      const startRow = Math.floor(row)
+      const endRow = Math.ceil(row)
+      const startCol = Math.floor(col)
+      const endCol = Math.floor(col)
+
+      for (let i = startRow; i <= endRow; ++i) {
+        for (let j = startCol; j <= endCol; ++j) {
+          this.loadCell(i, j)
+        }
+      }
+
+      // 节流
+      setTimeout(
+        () => {
+          this.wait = false
+          // 实时取 nextX & nextY
+          const { nextX, nextY } = this
+          if (x !== nextX || y !== nextY) {
+            // 需要更新滚动位置
+            this.updatePosition()
+          }
+        },
+        waitTime
+      )
+    }
+  }
+
+  handleScroll = () => {
+    const {
+      scrollX = 0,
+      scrollY = 0,
+      scrollLeft = 0,
+      scrollTop = 0
+    } = this.$group
+    this.nextX = scrollX || scrollLeft
+    this.nextY = scrollY || scrollTop
+    this.updatePosition()
+  }
 }
 
-// 图片模式
-const imageMode = PropTypes.oneOf([
-  'scaleToFill',
-  'aspectFit',
-  'aspectFill',
-  'widthFix',
-  'top',
-  'bottom',
-  'center',
-  'left',
-  'right',
-  'top left',
-  'top right',
-  'bottom left',
-  'bottom right'
-])
+// 将图片快照存入 group
+function addSnapToGroup (snap) {
+  const { $group } = snap
+  if (groupInfoSet.has($group) === false) {
+    // 不存在
+    groupInfoSet.set($group, new GroupInfo($group))
+  }
+  const groupInfo = groupInfoSet.get($group)
+  groupInfo.addSnap(snap)
+  // 更新 $group
+  groupInfo.update()
+}
+
+// 将图片快照从 group 中删除
+function removeSnapFromGroup (snap) {
+  const { $group } = snap
+  if (groupInfoSet.has($group)) {
+    const groupInfo = groupInfoSet.get($group)
+    groupInfo.removeSnap(snap)
+  }
+}
+
+// 默认占位节点
+const DEFAULT_LOADING_IMG = {
+  text: '努力加载中...',
+  src: '//misc.360buyimg.com/lib/skin/e/i/error-jd.gif',
+  width: 100,
+  height: 100
+}
+const DEFAULT_ERROR_IMG = {
+  text: '加载失败',
+  src: '//img11.360buyimg.com/jdphoto/s150x129_jfs/t1/25294/11/986/1390/5c0e7d65E9b96ef95/f9472bc971ba1673.png',
+  width: 100,
+  height: 100
+}
+
+// 当前使用的占位图片
+const LOADING_IMG = {}
+const ERROR_IMG = {}
+
+function getPlaceHold ({ status = 'loading', width, height }) {
+  const placehold = status === 'error' ? ERROR_IMG : LOADING_IMG
+  const {
+    text = '',
+    width: imageWidth,
+    height: imageHeight,
+    mode = 'center',
+    src
+  } = placehold
+  const fitStyle = fitImage({
+    mode,
+    width,
+    height,
+    imageWidth,
+    imageHeight
+  })
+  if (text === '') {
+    // 有图片
+    const style = Object.assign(
+      {
+        width: `${imageWidth}px`,
+        height: `${imageHeight}px`,
+      },
+      fitStyle
+    )
+    return <img style={style} src={src} />
+  }
+  // 文本
+  const style = Object.assign(
+    {
+      width: `${imageWidth}px`,
+      height: `${imageHeight}px`,
+      lineHeight: `${height}px`,
+      whiteSpace: 'nowrap',
+      textOverflow: 'ellipsis',
+      overflow: 'hidden',
+      textAlign: 'center',
+      fontSize: '14px'
+    },
+    fitStyle
+  )
+  return <div style={style}>{text}</div>
+}
+
+// 表示 loadingImg 与 errorImg 已经处理
+let onReady
+
+// 设置配置
+function setConfig ({ loadingImg = {}, errorImg = {} } = {}, mode = 'center') {
+  loadingImg = Object.assign(
+    {},
+    { src: DEFAULT_LOADING_IMG.src, mode },
+    loadingImg
+  )
+  errorImg = Object.assign(
+    {},
+    { src: DEFAULT_ERROR_IMG.src, mode },
+    errorImg
+  )
+  onReady = loadImageList(loadingImg.src, errorImg.src)
+  // 设置默认的占位图
+  onReady.then(
+    ([loadingImgSize, errorImgSize]) => {
+      if (loadingImgSize.width !== UNDEFINED) {
+        // 生成 LOADING 占位
+        Object.assign(
+          LOADING_IMG,
+          loadingImg,
+          loadingImgSize,
+          { text: '' }
+        )
+      }
+      if (errorImgSize.width !== UNDEFINED) {
+        // 生成错误图片占位
+        Object.assign(
+          ERROR_IMG,
+          errorImg,
+          errorImgSize,
+          { text: '' }
+        )
+      }
+    }
+  )
+}
+
+// 使用默认配置
+setConfig()
 
 export default class Picture extends Nerv.Component {
-  static defaultProps = {
-    placehold: '//misc.360buyimg.com/lib/skin/e/i/error-jd.gif',
-    placeholdMode: 'center',
-    fail: '//img11.360buyimg.com/jdphoto/s150x129_jfs/t1/25294/11/986/1390/5c0e7d65E9b96ef95/f9472bc971ba1673.png',
-    failMode: 'center',
-    rect: null,
-    src: '',
-    mode: 'scaleToFill',
-    lazyLoad: false,
-    update: Date.now(),
-    onError () {},
-    onLoad () {}
+  // 更新渲染
+  updateRender () {
+    this.setState({ update: this.state.update + 1 })
   }
-  static propTypes = {
-    src: PropTypes.string,
-    mode: imageMode,
-    placehold: PropTypes.string,
-    placeholdMode: imageMode,
-    fail: PropTypes.string,
-    failMode: imageMode,
-    lazyLoad: PropTypes.bool,
-    rect: PropTypes.shape({
-      top: PropTypes.number.isRequired,
-      left: PropTypes.number.isRequired,
-      width: PropTypes.number,
-      height: PropTypes.number
-    }),
-    onError: PropTypes.func,
-    onLoad: PropTypes.func
+
+  // 初始化图片
+  updateImage () {
+    const {
+      id,
+      $self,
+      onLoad,
+      onLoadStart,
+      onError,
+      props: { mode, src, group }
+    } = this
+    // 将图片按 id 号注册
+    const rect = register({
+      id,
+      mode,
+      src,
+      $self,
+      $group: group,
+      onLoad,
+      onLoadStart,
+      onError
+    })
+    this.onRectComputed(rect)
   }
-  // 当前的图片快照
-  snap = {}
-  // 强制更新位置
-  forceUpdate
-  state = { imageStatus: 'unload' }
-  updateImageStatus () { this.setState({ imageStatus: this.snap.status }) }
-  // 图片加载成功
-  handleLoad = ({ imageWidth, imageHeight }) => {
-    Object.assign(this.snap, { status: 'loaded', imageWidth, imageHeight })
-    fillImage(this.snap)
-    this.updateImageStatus()
-    this.props.onLoad()
+
+  // 进入加载状态
+  onLoadStart = () => {
+    this.setState({ status: 'loading' })
   }
-  // 图片加载失败
-  handleError = e => {
-    this.snap.status = 'error'
-    const { fail, failMode } = this.props
-    loadImage(fail).then(
-      ({ imageWidth, imageHeight }) => {
-        Object.assign(
-          this.snap,
-          {
-            src: fail,
-            imageWidth,
-            imageHeight,
-            mode: failMode,
-            onLoad () {},
-            onError () {}
-          }
-        )
-        fillImage(this.snap)
-        this.updateImageStatus()
-      }
-    )
-    this.props.onError(e)
+
+  // 加载成功
+  onLoad = ({ width, height }) => {
+    this.props.onLoad({ height, width })
+    // 记录图片的原生尺寸
+    this.size = { width, height }
+    this.setState({ status: 'loaded' })
   }
-  record (props = this.props) {
-    // 未挂载成功
-    if (this.$self === null || this.$wrap === null || !this.imageId) return
-    const { lazyLoad, container = window, mode, src, update, rect } = props
-    const { status = 'unload', imageStyle = {} } = this.snap
-    if (update !== this.forceUpdate && status === 'unload') {
-      // 初始化快照
-      this.snap = {
-        id: this.imageId,
-        wrap: this.$wrap,
-        image: this.$self,
-        imageStyle,
-        container,
-        mode,
-        src,
-        rect,
-        onLoad: size => { this.handleLoad(size) },
-        onError: e => this.handleError(e),
-        status: 'unload'
-      }
-      registerPosition(this.snap)
-      this.forceUpdate = update
-    }
-    if (lazyLoad === false) {
-      // 非 lazyload
-      loadImage(src)
-        .then(size => this.handleLoad(size))
-        .catch(e => this.handleError(e))
+
+  // 加载失败
+  onError = errMsg => {
+    this.props.onError({ errMsg })
+    this.setState({ status: 'error' })
+  }
+
+  // 在容器节点执行 getBoundingClientRect 后触发
+  onRectComputed (rect) {
+    const { width, height } = this.rect
+    if (width !== rect.width || height !== rect.height) {
+      // 尺寸有变化
+      Object.assign(this.rect, rect)
+      // 更新渲染
+      this.updateRender()
     }
   }
-  $wrap = null
-  $self = null
-  componentDidMount () {
-    this.imageId = `image-id-${Date.now()}-${imageStamp++}`
-    // 加载 loading 图片
-    const { placehold, placeholdMode } = this.props
-    loadImage(placehold).then(
-      ({ imageWidth, imageHeight }) => {
-        const placeholdSnap = Object.assign(
-          {},
-          this.snap,
-          {
-            src: placehold,
-            imageWidth,
-            imageHeight,
-            mode: placeholdMode,
-            onLoad () {},
-            onError () {}
-          }
-        )
-        fillImage(placeholdSnap)
-        this.snap.placeholdStyle = placeholdSnap.imageStyle
-        this.updateImageStatus()
+
+  getImage () {
+    // 初始配置还没完成，直接返回空
+    if (this.configIsReady === false) return null
+    const { status } = this.state
+    const { width = 0, height = 0 } = this.rect
+    const { width: imageWidth = 0, height: imageHeight = 0 } = this.size
+    const { mode, src } = this.props
+    switch (status) {
+      case 'loaded': {
+        const style = fitImage({ mode, width, height, imageWidth, imageHeight })
+        return <img src={src} style={style} />
       }
-    )
-    this.record()
+      case 'error':
+      case 'unload':
+      case 'loading':
+        return (
+          <div style={{ width: `${width}px`, height: `${height}px`, overflow: 'hidden' }}>
+            {getPlaceHold({ status, width, height })}
+          </div>
+        )
+    }
   }
+
   shouldComponentUpdate (nextProps, nextState) {
-    let sameStyle = true
-    for (const key in nextProps.style) {
-      if (nextProps.style[key] !== this.props.style[key]) {
-        sameStyle = false
-        break
+    // 针对下以 props 进行判断
+    let needRender = (
+      nextState.update !== this.state.update ||
+      nextState.status !== this.state.status ||
+      nextState.configIsReady !== this.state.configIsReady
+    )
+    if (needRender === false) {
+      needRender = [
+        'mode',
+        'lazyLoad',
+        'onError',
+        'onLoad',
+        'src',
+        'className',
+        'group'
+      ].some(
+        name => nextProps[name] !== this.props[name]
+      )
+    }
+    if (needRender === false) {
+      const { style } = this.props
+      const { nextStyle = {} } = nextProps
+      for (const key in style) {
+        if (style[key] !== nextStyle[key]) {
+          needRender = true
+          break
+        }
       }
     }
-    if (sameStyle === true) {
-      for (const key in this.props.style) {
-        if (nextProps.style[key] !== this.props.style[key]) {
-          sameStyle = false
+    if (needRender === false) {
+      const { style } = this.props
+      const { nextStyle = {} } = nextProps
+      for (const key in nextStyle) {
+        if (style[key] !== nextStyle[key]) {
+          needRender = true
           break
         }
       }
     }
     if (
-      sameStyle === true &&
-      nextProps.src === this.props.src &&
-      nextProps.className === this.props.className &&
-      nextProps.mode === this.props.mode &&
-      nextProps.update === this.props.update &&
-      nextState.imageStatus === this.props.imageStatus
+      needRender === false &&
+      (
+        this.props.update !== nextProps.update ||
+        this.props.update === 'aways'
+      )
     ) {
-      // 需要校验的属性都相等，不需要更新
-      return false
+      // 只需要更新图片的信息
+      this.updateImage()
     }
-    this.record(nextProps)
+    return needRender
   }
+
+  componentDidMount () {
+    // 生成 ID
+    this.id = keyGenerator()
+    // 挂载成功
+    onReady.then(
+      () => {
+        // 在显示 placehold 之前，计算图片的尺寸
+        this.updateImage()
+        this.setState({ configIsReady: true })
+      }
+    )
+  }
+
+  componentDidUpdate (prevProps) {
+    // 更新成功 - 处理 className 和 style 引起的变化
+    if (this.state.configIsReady === true) {
+      const { update, className, style = {} } = this.props
+      const { prevStyle = {} } = prevProps
+      let needUpdateImage = prevProps.className !== className
+      if (update !== prevProps.update || update === 'aways') {
+        needUpdateImage = true
+      }
+      if (needUpdateImage === false) {
+        // 对比 style 方法
+        for (const key in style) {
+          if (style[key] !== prevStyle[key]) {
+            needUpdateImage = true
+            break
+          }
+        }
+      }
+      if (needUpdateImage === false) {
+        // 对比 style 方法
+        for (const key in prevStyle) {
+          if (style[key] !== prevStyle[key]) {
+            needUpdateImage = true
+            break
+          }
+        }
+      }
+      if (needUpdateImage === true) {
+        // 更新图片
+        this.updateImage()
+      }
+    }
+  }
+
   render () {
     const {
-      src,
-      placehold,
-      fail,
-      style = {},
-      className,
-      mode
+      title,
+      className
     } = this.props
-    const { placeholdStyle, status } = this.snap
-    const imageStyle = (status === 'loaded' || status === 'error') ? this.snap.imageStyle : placeholdStyle
-    // widthFix 模式下，style.height 会取 imageStyle.height
-    if (mode === 'widthFix') {
-      style.height = `${imageStyle.height}!important`
-    }
-    // 容器一定是 overflow: hidden
-    style.overflow = 'hidden'
-    // 图片路径
-    let imageSrc = ''
-    switch (this.state.imageStatus) {
-      case 'loaded':
-        imageSrc = src
-        break
-      case 'error':
-        imageSrc = fail
-        break
-      case 'unload':
-      case 'loading':
-      default: imageSrc = placehold
-    }
-    return <div style={style} className={className || ''} ref={$ => (this.$wrap = $)}>
-      <img
-        src={imageSrc}
-        ref={$ => (this.$self = $)}
-        style={imageStyle}
-      />
-    </div>
+
+    // 保证模拟器样式
+    const style = Object.assign(
+      {
+        outline: '0 none',
+        cursor: 'default'
+      },
+      this.props.style,
+      {
+        border: '0 none',
+        padding: '0',
+        overflow: 'hidden',
+        '-ms-appearance': 'none',
+        '-moz-appearance': 'none',
+        '-webkit-appearance': 'none',
+        appearance: 'none'
+      }
+    )
+
+    const $image = this.getImage()
+
+    return <button
+      className={className}
+      style={style}
+      ref={ $ => (this.$self = $) }
+      title={title}
+    >
+      {
+        $image
+      }
+    </button>
+  }
+  static setConfig = (...arg) => setConfig(...arg)
+  state = { update: 0, configIsReady: false, status: 'unload' }
+  $self = null
+  // 容器边界
+  rect = {}
+  // 原生图片尺寸
+  size = {}
+
+  static defaultProps = {
+    src: '',
+    title: '',
+    alt: '',
+    lazyLoad: false,
+    onError () {},
+    onLoad () {},
+    className () {},
+    group: window,
+    style: null,
+    mode: 'scaleToFill'
+  }
+  static propTypes = {
+    src: PropTypes.string,
+    title: PropTypes.string,
+    alt: PropTypes.string,
+    lazyLoad: PropTypes.bool,
+    onError: PropTypes.func,
+    onLoad: PropTypes.func,
+    className: PropTypes.string,
+    group: PropTypes.object,
+    style: PropTypes.object,
+    mode: PropTypes.oneOf([
+      'scaleToFill',
+      'aspectFit',
+      'aspectFill',
+      'widthFix',
+      'top',
+      'bottom',
+      'center',
+      'left',
+      'right',
+      'top left',
+      'top right',
+      'bottom left',
+      'bottom right'
+    ])
   }
 }
