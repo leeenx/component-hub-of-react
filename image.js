@@ -354,6 +354,8 @@ class GroupInfo {
       const snap = unloadSnaps[name]
       const {
         rect: {
+          width: snapWidth = 0,
+          height: snapHeight = 0,
           top: snapTop = 0,
           left: snapLeft = 0
         }
@@ -363,9 +365,16 @@ class GroupInfo {
         x: snapLeft - x,
         y: snapTop - y
       }
-      const row = Math.floor(relative.y / height)
-      const col = Math.floor(relative.x / width)
-      this.setCell(row, col, snap)
+      // 一张图片可以会有跨度
+      const startRow = Math.floor(relative.y / height)
+      const endRow = Math.ceil((relative.y + snapHeight) / height)
+      const startCol = Math.floor(relative.x / width)
+      const endCol = Math.ceil((relative.x + snapWidth) / width)
+      for (let row = startRow; row <= endRow; ++row) {
+        for (let col = startCol; col <= endCol; ++col) {
+          this.setCell(row, col, snap)
+        }
+      }
     }
   }
 
@@ -425,7 +434,7 @@ class GroupInfo {
       const startRow = Math.floor(row)
       const endRow = Math.ceil(row)
       const startCol = Math.floor(col)
-      const endCol = Math.floor(col)
+      const endCol = Math.ceil(col)
 
       for (let i = startRow; i <= endRow; ++i) {
         for (let j = startCol; j <= endCol; ++j) {
@@ -672,6 +681,7 @@ export default class Picture extends Nerv.Component {
         )
     }
   }
+
 
   shouldComponentUpdate (nextProps, nextState) {
     // 针对下以 props 进行判断
