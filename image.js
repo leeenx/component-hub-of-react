@@ -251,7 +251,9 @@ function register ({
       rect,
       status: 'unload',
       load () {
-        if (this.status !== 'unload') return
+        if (this.status !== 'unload') {
+          return
+        }
         this.status = 'loading'
         onLoadStart(rect)
         loadImage(src)
@@ -289,34 +291,42 @@ class GroupInfo {
   nextY = 0
   wait = false
   rect = {}
-  // 未加载图片快照列表
-  unloadSnaps = {}
+  // 未处理过的快照集
+  rawSnaps = {}
+  // 处理过的快照集
+  refinedSnaps = {}
   // 分屏网格
   grid = []
 
   // 添加 snap
   addSnap (snap) {
     const { id } = snap
-    // 按 id 存储
-    this.unloadSnaps[id] = snap
+    // 收集原始快照
+    this.rawSnaps[id] = snap
   }
 
   // 删除 snap
   removeSnap (snap) {
     const { id } = snap
-    delete this.unloadSnaps[id]
+    delete this.refinedSnaps[id]
   }
 
   // 填充网格的单元格
   setCell (row, col, snap) {
-    const { grid } = this
-    if (grid[row] === UNDEFINED) {
-      grid[row] = []
+    if (
+      row >= 0 &&
+      col >= 0 &&
+      snap.status === 'unload'
+    ) {
+      const { grid } = this
+      if (grid[row] === UNDEFINED) {
+        grid[row] = []
+      }
+      if (grid[row][col] === UNDEFINED) {
+        grid[row][col] = []
+      }
+      grid[row][col].push(snap)
     }
-    if (grid[row][col] === UNDEFINED) {
-      grid[row][col] = []
-    }
-    grid[row][col].push(snap)
   }
 
   // 加载单元格的快照
@@ -331,7 +341,10 @@ class GroupInfo {
       return
     }
     const cell = grid[row][col]
-    cell.forEach(snap => snap.load())
+    cell.forEach(snap => {
+      snap.load()
+      this.removeSnap(snap)
+    })
     // 清空单元格
     cell.length = []
   }
@@ -339,19 +352,36 @@ class GroupInfo {
   // 更新网络
   updateGrid () {
     const {
-      unloadSnaps,
+      rawSnaps,
+      refinedSnaps,
       grid,
       x,
       y,
       rect: {
+        top,
+        left,
         width,
         height
       }
     } = this
     // 清空网格
     grid.length = []
-    for (const name in unloadSnaps) {
-      const snap = unloadSnaps[name]
+    // 将 rawSnaps 处理一下
+    for (const name in rawSnaps) {
+      const rawSnap = rawSnaps[name]
+      const { rect: {
+        top: snapTop = 0,
+        left: snapLeft = 0
+      } } = rawSnap
+      // 获取相对于父容器的定位
+      rawSnap.rect.top = snapTop - top + y
+      rawSnap.rect.left = snapLeft - left + x
+      // 删除当前项
+      refinedSnaps[name] = rawSnap
+      delete rawSnaps[name]
+    }
+    for (const name in refinedSnaps) {
+      const snap = refinedSnaps[name]
       const {
         rect: {
           width: snapWidth = 0,
@@ -360,16 +390,11 @@ class GroupInfo {
           left: snapLeft = 0
         }
       } = snap
-      // 相对于容器的坐标
-      const relative = {
-        x: snapLeft - x,
-        y: snapTop - y
-      }
       // 一张图片可以会有跨度
-      const startRow = Math.floor(relative.y / height)
-      const endRow = Math.ceil((relative.y + snapHeight) / height)
-      const startCol = Math.floor(relative.x / width)
-      const endCol = Math.ceil((relative.x + snapWidth) / width)
+      const startRow = Math.floor(snapTop / height)
+      const endRow = Math.ceil((snapTop + snapHeight) / height)
+      const startCol = Math.floor(snapLeft / width)
+      const endCol = Math.ceil((snapLeft + snapWidth) / width)
       for (let row = startRow; row <= endRow; ++row) {
         for (let col = startCol; col <= endCol; ++col) {
           this.setCell(row, col, snap)
@@ -600,6 +625,54 @@ function setConfig ({ loadingImg = {}, errorImg = {} } = {}, mode = 'center') {
 setConfig()
 
 export default class Picture extends Nerv.Component {
+  static setConfig = (...arg) => setConfig(...arg)
+
+  static defaultProps = {
+    src: '',
+    title: '',
+    alt: '',
+    lazyLoad: false,
+    onError () {},
+    onLoad () {},
+    className () {},
+    group: window,
+    style: null,
+    mode: 'scaleToFill'
+  }
+  static propTypes = {
+    src: PropTypes.string,
+    title: PropTypes.string,
+    alt: PropTypes.string,
+    lazyLoad: PropTypes.bool,
+    onError: PropTypes.func,
+    onLoad: PropTypes.func,
+    className: PropTypes.string,
+    group: PropTypes.object,
+    style: PropTypes.object,
+    mode: PropTypes.oneOf([
+      'scaleToFill',
+      'aspectFit',
+      'aspectFill',
+      'widthFix',
+      'top',
+      'bottom',
+      'center',
+      'left',
+      'right',
+      'top left',
+      'top right',
+      'bottom left',
+      'bottom right'
+    ])
+  }
+
+  state = { update: 0, configIsReady: false, status: 'unload' }
+  $self = null
+  // 容器边界
+  rect = {}
+  // 原生图片尺寸
+  size = {}
+
   // 更新渲染
   updateRender () {
     this.setState({ update: this.state.update + 1 })
@@ -650,8 +723,13 @@ export default class Picture extends Nerv.Component {
 
   // 在容器节点执行 getBoundingClientRect 后触发
   onRectComputed (rect) {
-    const { width, height } = this.rect
-    if (width !== rect.width || height !== rect.height) {
+    const { width, height, top, left } = this.rect
+    if (
+      width !== rect.width ||
+      height !== rect.height ||
+      top !== rect.top ||
+      left !== rect.left
+    ) {
       // 尺寸有变化
       Object.assign(this.rect, rect)
       // 更新渲染
@@ -819,51 +897,5 @@ export default class Picture extends Nerv.Component {
         $image
       }
     </button>
-  }
-  static setConfig = (...arg) => setConfig(...arg)
-  state = { update: 0, configIsReady: false, status: 'unload' }
-  $self = null
-  // 容器边界
-  rect = {}
-  // 原生图片尺寸
-  size = {}
-
-  static defaultProps = {
-    src: '',
-    title: '',
-    alt: '',
-    lazyLoad: false,
-    onError () {},
-    onLoad () {},
-    className () {},
-    group: window,
-    style: null,
-    mode: 'scaleToFill'
-  }
-  static propTypes = {
-    src: PropTypes.string,
-    title: PropTypes.string,
-    alt: PropTypes.string,
-    lazyLoad: PropTypes.bool,
-    onError: PropTypes.func,
-    onLoad: PropTypes.func,
-    className: PropTypes.string,
-    group: PropTypes.object,
-    style: PropTypes.object,
-    mode: PropTypes.oneOf([
-      'scaleToFill',
-      'aspectFit',
-      'aspectFill',
-      'widthFix',
-      'top',
-      'bottom',
-      'center',
-      'left',
-      'right',
-      'top left',
-      'top right',
-      'bottom left',
-      'bottom right'
-    ])
   }
 }
