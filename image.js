@@ -43,11 +43,11 @@ function loadImage (src) {
         const { naturalWidth: width, naturalHeight: height } = $image
         resolve({ width, height })
       }
-      $image.onerror = e => reject(e)
+      $image.onerror = e => {
+        reject(e)
+      }
       $image.src = src
     })
-      .then(result => result)
-      .catch(e => e)
     imageCache[src] = cache
   }
   return cache
@@ -87,12 +87,11 @@ function fitImage (options) {
       if (imageRatio > ratio) {
         // 图片比容器长
         style = {
-          position: 'relative',
           display: 'block',
           width: `${height / imageRatio}px`,
           height: `${height}px`,
-          top: 0,
-          left: `${(width - (height / imageRatio))}px`
+          marginTop: 0,
+          marginLeft: `${(width - (height / imageRatio))}px`
         }
       } else {
         // 图片比容器扁
@@ -100,7 +99,7 @@ function fitImage (options) {
           display: 'block',
           width: `${width}px`,
           height: `${width * imageRatio}px`,
-          marginTop: `${(height - (width * imageRatio)) / 2}px`,
+          // marginTop: `${(height - (width * imageRatio)) / 2}px`,
           marginLeft: 0
         }
       }
@@ -131,70 +130,93 @@ function fitImage (options) {
         display: 'block',
         width: `${width}px`,
         height: 'auto',
-        marginTop: 0,
+        marginTop:
+          imageRatio > ratio ?
+            0 : `${((width * imageRatio) - height) / 2}px`,
         marginLeft: 0
       }
       break
     case 'top':
       style = {
         display: 'block',
-        marginTop: 0,
+        marginTop:
+          imageRatio > ratio ?
+            0 : `${(imageHeight - height) / 2}px`,
         marginLeft: `${(width - imageWidth) / 2}px`
       }
       break
     case 'bottom':
       style = {
         display: 'block',
-        marginTop: `${height - imageHeight}px`,
+        marginTop:
+          imageRatio > ratio ?
+            `${height - imageHeight}px` :
+            `${(height - imageHeight) / 2}px`,
         marginLeft: `${(width - imageWidth) / 2}px`
       }
       break
     case 'center':
       style = {
         display: 'block',
-        marginTop: `${(height - imageHeight) / 2}px`,
+        marginTop:
+          imageRatio > ratio ?
+            `${(height - imageHeight) / 2}px` : 0,
         marginLeft: `${(width - imageWidth) / 2}px`
       }
       break
     case 'left':
       style = {
         display: 'block',
-        marginTop: `${(height - imageHeight) / 2}px`,
+        marginTop:
+          imageRatio > ratio ?
+            `${(height - imageHeight) / 2}px` : 0,
         marginLeft: 0
       }
       break
     case 'right':
       style = {
         display: 'block',
-        marginTop: `${(height - imageHeight) / 2}px`,
+        marginTop:
+          imageRatio > ratio ?
+            `${(height - imageHeight) / 2}px` : 0,
         marginLeft: `${width - imageWidth}px`
       }
       break
     case 'top left':
       style = {
         display: 'block',
-        marginTop: 0,
+        marginTop:
+          imageRatio > ratio ?
+            0 : `${(imageHeight - height) / 2}px`,
         marginLeft: 0
       }
       break
     case 'top right':
       style = {
         display: 'block',
-        marginTop: 0,
+        marginTop:
+          imageRatio > ratio ?
+            0 : `${(imageHeight - height) / 2}px`,
         marginLeft: `${width - imageWidth}px`
       }
       break
     case 'bottom left':
       style = {
         display: 'block',
-        marginTop: `${height - imageHeight}px`,
+        marginTop:
+          imageRatio > ratio ?
+            `${height - imageHeight}px` :
+            `${(height - imageHeight) / 2}px`,
         marginLeft: 0
       }
       break
     case 'bottom right':
       style = {
         display: 'block',
-        marginTop: `${height - imageHeight}px`,
+        marginTop:
+          imageRatio > ratio ?
+            `${height - imageHeight}px` :
+            `${(height - imageHeight) / 2}px`,
         marginLeft: `${width - imageWidth}px`
       }
       break
@@ -688,6 +710,10 @@ export default class Picture extends Nerv.Component {
       onError,
       props: { mode, src, group }
     } = this
+    if ($self === null) {
+      // 未准备好
+      return
+    }
     // 将图片按 id 号注册
     const rect = register({
       id,
@@ -752,11 +778,7 @@ export default class Picture extends Nerv.Component {
       case 'error':
       case 'unload':
       case 'loading':
-        return (
-          <div style={{ width: `${width}px`, height: `${height}px`, overflow: 'hidden' }}>
-            {getPlaceHold({ status, width, height })}
-          </div>
-        )
+        return getPlaceHold({ status, width, height })
     }
   }
 
@@ -877,6 +899,7 @@ export default class Picture extends Nerv.Component {
       {
         border: '0 none',
         padding: '0',
+        background: 'none',
         overflow: 'hidden',
         '-ms-appearance': 'none',
         '-moz-appearance': 'none',
