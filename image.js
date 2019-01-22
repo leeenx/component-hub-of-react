@@ -543,7 +543,7 @@ function removeSnapFromGroup (snap) {
 // 默认占位节点
 const DEFAULT_LOADING_IMG = {
   text: '努力加载中...',
-  src: '//misc.360buyimg.com/lib/skin/e/i/error-jd.gif',
+  src: '//img11.360buyimg.com/jdphoto/s140x50_jfs/t1/11451/23/6841/1341/5c46da77E959ff92c/78447dc0b12d097c.png',
   width: 100,
   height: 100
 }
