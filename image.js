@@ -14,14 +14,10 @@
  * @ errorImg: { src, mode } ---- 加载抢购的占位图，src 与 mode 与上面的同名API功能一致
  * update，通过改变化 update 值可以更新图片的 boundingClientRect 信息 ---- 如果传入 Date.now，效果同 aways
  * update === 'aways' 每次 render 都会更新图片的 boundingClientRect 信息 ---- 比较耗性能
- * 注意事项：display 取 block 值时，请保证宽高
  */
 
-import Nerv from 'nervjs'
+import React from 'react'
 import PropTypes from 'prop-types'
-
-// 声明一个 undefine 常量
-const UNDEFINED = (function () {}())
 
 // ID 生成器
 const keyGenerator = (function () {
@@ -241,13 +237,14 @@ function register ({
   $self,
   $group,
   src,
+  lazyLoad,
   onLoad,
   onLoadStart,
   onError
 }) {
   const prevSnap = imageSnaps[id]
   // 是否需要重新生成快照
-  let needNewSnap = prevSnap === UNDEFINED
+  let needNewSnap = prevSnap === undefined
   if (needNewSnap === false) {
     if (src !== prevSnap.src) {
       // 「路径」变了，表示快照需要重新生成
@@ -267,6 +264,7 @@ function register ({
     imageSnaps[id] = {
       id,
       mode,
+      lazyLoad,
       src,
       $self,
       $group,
@@ -341,10 +339,10 @@ class GroupInfo {
       snap.status === 'unload'
     ) {
       const { grid } = this
-      if (grid[row] === UNDEFINED) {
+      if (grid[row] === undefined) {
         grid[row] = []
       }
-      if (grid[row][col] === UNDEFINED) {
+      if (grid[row][col] === undefined) {
         grid[row][col] = []
       }
       grid[row][col].push(snap)
@@ -355,20 +353,23 @@ class GroupInfo {
   loadCell (row, col) {
     const { grid } = this
     if (
-      grid[row] === UNDEFINED ||
-      grid[row][col] === UNDEFINED ||
+      grid[row] === undefined ||
+      grid[row][col] === undefined ||
       grid[row][col].length === 0
     ) {
       // 单元格下没有图片
       return
     }
     const cell = grid[row][col]
-    cell.forEach(snap => {
-      snap.load()
-      this.removeSnap(snap)
-    })
+    cell.forEach(this.loadSnap)
     // 清空单元格
     cell.length = []
+  }
+
+  // 加载快照
+  loadSnap (snap) {
+    snap.load()
+    this.removeSnap(snap)
   }
 
   // 更新网络
@@ -404,6 +405,11 @@ class GroupInfo {
     }
     for (const name in refinedSnaps) {
       const snap = refinedSnaps[name]
+      if (snap.lazyLoad === false) {
+        // 直接加载图片
+        this.loadSnap(snap)
+        continue
+      }
       const {
         rect: {
           width: snapWidth = 0,
@@ -621,7 +627,7 @@ function setConfig ({ loadingImg = {}, errorImg = {} } = {}, mode = 'center') {
   // 设置默认的占位图
   onReady.then(
     ([loadingImgSize, errorImgSize]) => {
-      if (loadingImgSize.width !== UNDEFINED) {
+      if (loadingImgSize.width !== undefined) {
         // 生成 LOADING 占位
         Object.assign(
           LOADING_IMG,
@@ -630,7 +636,7 @@ function setConfig ({ loadingImg = {}, errorImg = {} } = {}, mode = 'center') {
           { text: '' }
         )
       }
-      if (errorImgSize.width !== UNDEFINED) {
+      if (errorImgSize.width !== undefined) {
         // 生成错误图片占位
         Object.assign(
           ERROR_IMG,
@@ -646,7 +652,7 @@ function setConfig ({ loadingImg = {}, errorImg = {} } = {}, mode = 'center') {
 // 使用默认配置
 setConfig()
 
-export default class Picture extends Nerv.Component {
+export default class Picture extends React.Component {
   static setConfig = (...arg) => setConfig(...arg)
 
   static defaultProps = {
@@ -708,7 +714,7 @@ export default class Picture extends Nerv.Component {
       onLoad,
       onLoadStart,
       onError,
-      props: { mode, src, group }
+      props: { mode, lazyLoad, src, group }
     } = this
     if ($self === null) {
       // 未准备好
@@ -719,6 +725,7 @@ export default class Picture extends Nerv.Component {
       id,
       mode,
       src,
+      lazyLoad,
       $self,
       $group: group,
       onLoad,
