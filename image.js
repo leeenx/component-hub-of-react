@@ -14,6 +14,7 @@
  * @ errorImg: { src, mode } ---- 加载抢购的占位图，src 与 mode 与上面的同名API功能一致
  * update，通过改变化 update 值可以更新图片的 boundingClientRect 信息 ---- 如果传入 Date.now，效果同 aways
  * update === 'aways' 每次 render 都会更新图片的 boundingClientRect 信息 ---- 比较耗性能
+ * group 用于指定图片所在的滚动参考
  */
 
 import React from 'react'
@@ -87,7 +88,7 @@ function fitImage (options) {
           width: `${height / imageRatio}px`,
           height: `${height}px`,
           marginTop: 0,
-          marginLeft: `${(width - (height / imageRatio))}px`
+          marginLeft: `${(width - (height / imageRatio)) / 2}px`
         }
       } else {
         // 图片比容器扁
@@ -95,7 +96,7 @@ function fitImage (options) {
           display: 'block',
           width: `${width}px`,
           height: `${width * imageRatio}px`,
-          // marginTop: `${(height - (width * imageRatio)) / 2}px`,
+          marginTop: 0,
           marginLeft: 0
         }
       }
@@ -155,7 +156,7 @@ function fitImage (options) {
       style = {
         display: 'block',
         marginTop:
-          imageRatio > ratio ?
+          imageHeight > height ?
             `${(height - imageHeight) / 2}px` : 0,
         marginLeft: `${(width - imageWidth) / 2}px`
       }
@@ -164,7 +165,7 @@ function fitImage (options) {
       style = {
         display: 'block',
         marginTop:
-          imageRatio > ratio ?
+          imageHeight > height ?
             `${(height - imageHeight) / 2}px` : 0,
         marginLeft: 0
       }
@@ -173,7 +174,7 @@ function fitImage (options) {
       style = {
         display: 'block',
         marginTop:
-          imageRatio > ratio ?
+          imageHeight > height ?
             `${(height - imageHeight) / 2}px` : 0,
         marginLeft: `${width - imageWidth}px`
       }
@@ -182,7 +183,7 @@ function fitImage (options) {
       style = {
         display: 'block',
         marginTop:
-          imageRatio > ratio ?
+          imageHeight > height ?
             0 : `${(imageHeight - height) / 2}px`,
         marginLeft: 0
       }
@@ -191,7 +192,7 @@ function fitImage (options) {
       style = {
         display: 'block',
         marginTop:
-          imageRatio > ratio ?
+          imageHeight > height ?
             0 : `${(imageHeight - height) / 2}px`,
         marginLeft: `${width - imageWidth}px`
       }
@@ -200,7 +201,7 @@ function fitImage (options) {
       style = {
         display: 'block',
         marginTop:
-          imageRatio > ratio ?
+          imageHeight > height ?
             `${height - imageHeight}px` :
             `${(height - imageHeight) / 2}px`,
         marginLeft: 0
@@ -210,7 +211,7 @@ function fitImage (options) {
       style = {
         display: 'block',
         marginTop:
-          imageRatio > ratio ?
+          imageHeight > height ?
             `${height - imageHeight}px` :
             `${(height - imageHeight) / 2}px`,
         marginLeft: `${width - imageWidth}px`
@@ -367,7 +368,7 @@ class GroupInfo {
   }
 
   // 加载快照
-  loadSnap (snap) {
+  loadSnap = snap => {
     snap.load()
     this.removeSnap(snap)
   }
@@ -570,9 +571,12 @@ function getPlaceHold ({ status = 'loading', width, height }) {
     text = '',
     width: imageWidth,
     height: imageHeight,
-    mode = 'center',
     src
   } = placehold
+  let { mode = 'center' } = placehold
+  if (width < imageWidth || height < imageHeight) {
+    mode = 'aspectFit'
+  }
   const fitStyle = fitImage({
     mode,
     width,
@@ -694,6 +698,10 @@ export default class Picture extends React.Component {
     ])
   }
 
+  static contextTypes = {
+    getImageGroup: PropTypes.func
+  }
+
   state = { update: 0, configIsReady: false, status: 'unload' }
   $self = null
   // 容器边界
@@ -714,9 +722,15 @@ export default class Picture extends React.Component {
       onLoad,
       onLoadStart,
       onError,
-      props: { mode, lazyLoad, src, group }
+      props: { mode, lazyLoad, src }
     } = this
-    if ($self === null) {
+    let { group } = this.props
+    const { getImageGroup } = this.context
+    if (typeof getImageGroup === 'function') {
+      // 容器是 scrollViewNode
+      group = getImageGroup()
+    }
+    if (group === null || $self === null) {
       // 未准备好
       return
     }
@@ -895,7 +909,6 @@ export default class Picture extends React.Component {
       title,
       className
     } = this.props
-
     // 保证模拟器样式
     const style = Object.assign(
       {
