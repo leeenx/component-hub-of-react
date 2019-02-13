@@ -294,9 +294,8 @@ export default class ScrollView extends Component {
       style={style}
       aria-role={ariaRole}
       aria-label={ariaLabel}
-      style={style}
       onScroll={handleScroll}
-      ref={$ => {this.$self = $}}
+      ref={$ => { this.$self = $ }}
     >
       {children}
     </div>
