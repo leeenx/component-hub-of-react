@@ -97,6 +97,9 @@ export default class ScrollView extends Component {
       scrollTop: prevScrollTop = 0,
       scrollIntoView: prevScrollIntoView = ''
     } = prevProps
+    const { scrollIntoView } = this.props
+    let { scrollLeft, scrollTop } = this.props
+    const { $self } = this
     if (
       scrollLeft !== prevScrollLeft ||
       scrollTop !== prevScrollTop ||
@@ -120,9 +123,6 @@ export default class ScrollView extends Component {
         }
       )
     }
-    const { scrollIntoView } = this.props
-    let { scrollLeft, scrollTop } = this.props
-    const { $self } = this
     if (
       scrollLeft === prevScrollLeft &&
       scrollTop === prevScrollTop &&
