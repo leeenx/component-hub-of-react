@@ -14,11 +14,13 @@
  * @ errorImg: { src, mode } ---- 加载抢购的占位图，src 与 mode 与上面的同名API功能一致
  * update，通过改变化 update 值可以更新图片的 boundingClientRect 信息 ---- 如果传入 Date.now，效果同 aways
  * update === 'aways' 每次 render 都会更新图片的 boundingClientRect 信息 ---- 比较耗性能
- * group 用于指定图片所在的滚动参考
+ * viewport 用于指定图片所在的滚动视窗
  */
 
-import React from 'react'
+import React, { Component } from 'react'
 import PropTypes from 'prop-types'
+
+const nodefine = (() => {})()
 
 // ID 生成器
 const keyGenerator = (function () {
@@ -236,7 +238,7 @@ function register ({
   id,
   mode,
   $self,
-  $group,
+  $viewport,
   src,
   lazyLoad,
   onLoad,
@@ -245,7 +247,7 @@ function register ({
 }) {
   const prevSnap = imageSnaps[id]
   // 是否需要重新生成快照
-  let needNewSnap = prevSnap === undefined
+  let needNewSnap = prevSnap === nodefine
   if (needNewSnap === false) {
     if (src !== prevSnap.src) {
       // 「路径」变了，表示快照需要重新生成
@@ -253,10 +255,10 @@ function register ({
     }
     if (
       src !== prevSnap.src ||
-      $group !== prevSnap.$group
+      $viewport !== prevSnap.$viewport
     ) {
       // 「路径」或「组」有变化，从组中删除
-      removeSnapFromGroup(prevSnap)
+      removeSnapFromViewport(prevSnap)
     }
   }
   if (needNewSnap === true) {
@@ -268,7 +270,7 @@ function register ({
       lazyLoad,
       src,
       $self,
-      $group,
+      $viewport,
       rect,
       status: 'unload',
       load () {
@@ -287,30 +289,51 @@ function register ({
   }
   const snap = imageSnaps[id]
   // 生成/更新自己的 boundingRect
-  const { top, left, width, height } = $self.getBoundingClientRect()
-  Object.assign(snap.rect, { top, left, width, height })
-  // 将快照加到对应的group
-  addSnapToGroup(snap)
+  Object.assign(snap.rect, getRect($self))
+  // 将快照加到对应的viewport
+  addSnapToViewport(snap)
   return snap.rect
 }
 
-// 按 group 来存图片快照
-const groupInfoSet = new Map()
+function getRect ($el) {
+  const { top, left, width, height } = $el.getBoundingClientRect()
+  return { top, left, width, height }
+}
 
-// groupInfo 对象
-class GroupInfo {
+// 按 viewport 来存图片快照
+const viewportGroup = new Map()
+
+// viewport 对象
+class Viewport {
   static waitTime = 300
-  constructor ($group) {
-    this.$group = $group
-    this.update()
+  static has = (...arg) => viewportGroup.has(...arg)
+  static set = (...arg) => viewportGroup.set(...arg)
+  static get = (...arg) => viewportGroup.get(...arg)
+  constructor ($viewport) {
+    this.$viewport = $viewport
+    const { has, set, get } = Viewport
+    // 将 viewport 存入 viewportGroup 中
+    set($viewport, this)
+    if ($viewport !== window) {
+      // 将布局的 viewport 视作一个 snap 存入到全局视窗 window 中
+      const globalViewport = has(window) ? get(window) : new Viewport(window)
+      globalViewport.addSnap(this)
+      Object.assign(this.rect, getRect($viewport))
+    } else {
+      // window 视窗
+      this.load()
+    }
     // 监听滚动
-    $group.addEventListener('scroll', this.handleScroll)
+    $viewport.addEventListener('scroll', this.handleScroll)
   }
   x = 0
   y = 0
   nextX = 0
   nextY = 0
   wait = false
+  id = keyGenerator()
+  sleep = true
+  lazyLoad = true
   rect = {}
   // 未处理过的快照集
   rawSnaps = {}
@@ -319,14 +342,18 @@ class GroupInfo {
   // 分屏网格
   grid = []
 
-  // 添加 snap
+  // snap 添加到 view
   addSnap (snap) {
     const { id } = snap
     // 收集原始快照
     this.rawSnaps[id] = snap
+    if (this.sleep === false) {
+      // 自动更新
+      this.update()
+    }
   }
 
-  // 删除 snap
+  // 移除 snap
   removeSnap (snap) {
     const { id } = snap
     delete this.refinedSnaps[id]
@@ -337,25 +364,30 @@ class GroupInfo {
     if (
       row >= 0 &&
       col >= 0 &&
-      snap.status === 'unload'
+      (snap.status === 'unload' || snap.sleep === true)
     ) {
       const { grid } = this
-      if (grid[row] === undefined) {
+      if (grid[row] === nodefine) {
         grid[row] = []
       }
-      if (grid[row][col] === undefined) {
+      if (grid[row][col] === nodefine) {
         grid[row][col] = []
       }
       grid[row][col].push(snap)
     }
   }
 
+  // 取消睡眠模式
+  load () {
+    this.update(true)
+  }
+
   // 加载单元格的快照
   loadCell (row, col) {
     const { grid } = this
     if (
-      grid[row] === undefined ||
-      grid[row][col] === undefined ||
+      grid[row] === nodefine ||
+      grid[row][col] === nodefine ||
       grid[row][col].length === 0
     ) {
       // 单元格下没有图片
@@ -393,10 +425,12 @@ class GroupInfo {
     // 将 rawSnaps 处理一下
     for (const name in rawSnaps) {
       const rawSnap = rawSnaps[name]
-      const { rect: {
-        top: snapTop = 0,
-        left: snapLeft = 0
-      } } = rawSnap
+      const {
+        rect: {
+          top: snapTop = 0,
+          left: snapLeft = 0
+        }
+      } = rawSnap
       // 获取相对于父容器的定位
       rawSnap.rect.top = snapTop - top + y
       rawSnap.rect.left = snapLeft - left + x
@@ -421,9 +455,9 @@ class GroupInfo {
       } = snap
       // 一张图片可以会有跨度
       const startRow = Math.floor(snapTop / height)
-      const endRow = Math.ceil((snapTop + snapHeight) / height)
+      const endRow = Math.floor((snapTop + snapHeight) / height)
       const startCol = Math.floor(snapLeft / width)
-      const endCol = Math.ceil((snapLeft + snapWidth) / width)
+      const endCol = Math.floor((snapLeft + snapWidth) / width)
       for (let row = startRow; row <= endRow; ++row) {
         for (let col = startCol; col <= endCol; ++col) {
           this.setCell(row, col, snap)
@@ -432,26 +466,45 @@ class GroupInfo {
     }
   }
 
-  // group 更新
-  update () {
+  // viewport 更新
+  update (wakeup = true) {
     // 等待更新中
     if (this.updating === true) return
     // 更新合并
     this.updating = true
     Promise.resolve().then(
       () => {
-        const { $group } = this
-        // 更新 $group 的 boundingRect
-        this.rect = (
-          $group === window ?
-            {
-              top: 0,
-              left: 0,
-              width: document.documentElement.clientWidth,
-              height: document.documentElement.clientHeight
-            } :
-            $group.getBoundingClientRect()
-        )
+        const { $viewport } = this
+        // 更新 $viewport 的 boundingRect
+        if ($viewport === window) {
+          // 全局 viewport
+          this.rect = {
+            top: 0,
+            left: 0,
+            width: document.documentElement.clientWidth,
+            height: document.documentElement.clientHeight
+          }
+          // 全局没有睡眠状态
+          this.sleep = false
+        } else {
+          // 局部 viewport
+          const { top: prevTop, left: prevLeft } = this.rect
+          this.rect = getRect($viewport)
+          // 唤醒操作
+          if (this.sleep && wakeup) {
+            this.sleep = false
+            const { top: currentTop, left: currentLeft } = this.rect
+            const offsetTop = currentTop - prevTop
+            const offsetLeft = currentLeft - prevLeft
+            // 更新 viewport 下的 snap.rect
+            const { rawSnaps } = this
+            for (const name in rawSnaps) {
+              const rawSnap = rawSnaps[name]
+              rawSnap.rect.top += offsetTop
+              rawSnap.rect.left += offsetLeft
+            }
+          }
+        }
         this.updateGrid()
         this.wait = false
         this.updating = false
@@ -464,6 +517,7 @@ class GroupInfo {
   // 更新滚动位置
   updatePosition () {
     const {
+      sleep,
       wait,
       nextX,
       nextY,
@@ -474,7 +528,9 @@ class GroupInfo {
         height
       }
     } = this
-    const waitTime = GroupInfo.waitTime
+    // 睡眠状态（即 viewport 未进入可见范围）
+    if (sleep) return
+    const waitTime = Viewport.waitTime
     if (wait === false) {
       // 非等待中
       this.wait = true
@@ -518,32 +574,29 @@ class GroupInfo {
       scrollY = 0,
       scrollLeft = 0,
       scrollTop = 0
-    } = this.$group
+    } = this.$viewport
     this.nextX = scrollX || scrollLeft
     this.nextY = scrollY || scrollTop
     this.updatePosition()
   }
 }
 
-// 将图片快照存入 group
-function addSnapToGroup (snap) {
-  const { $group } = snap
-  if (groupInfoSet.has($group) === false) {
-    // 不存在
-    groupInfoSet.set($group, new GroupInfo($group))
-  }
-  const groupInfo = groupInfoSet.get($group)
-  groupInfo.addSnap(snap)
-  // 更新 $group
-  groupInfo.update()
+// 将图片快照存入 viewport
+function addSnapToViewport (snap) {
+  const { $viewport } = snap
+  const { has, get } = Viewport
+  const viewport = (
+    has($viewport) ? get($viewport) : new Viewport($viewport)
+  )
+  viewport.addSnap(snap)
 }
 
-// 将图片快照从 group 中删除
-function removeSnapFromGroup (snap) {
-  const { $group } = snap
-  if (groupInfoSet.has($group)) {
-    const groupInfo = groupInfoSet.get($group)
-    groupInfo.removeSnap(snap)
+// 将图片快照从 viewport 中删除
+function removeSnapFromViewport (snap) {
+  const { $viewport } = snap
+  if (viewportGroup.has($viewport)) {
+    const viewport = viewportGroup.get($viewport)
+    viewport.removeSnap(snap)
   }
 }
 
@@ -631,7 +684,7 @@ function setConfig ({ loadingImg = {}, errorImg = {} } = {}, mode = 'center') {
   // 设置默认的占位图
   onReady.then(
     ([loadingImgSize, errorImgSize]) => {
-      if (loadingImgSize.width !== undefined) {
+      if (loadingImgSize.width !== nodefine) {
         // 生成 LOADING 占位
         Object.assign(
           LOADING_IMG,
@@ -640,7 +693,7 @@ function setConfig ({ loadingImg = {}, errorImg = {} } = {}, mode = 'center') {
           { text: '' }
         )
       }
-      if (errorImgSize.width !== undefined) {
+      if (errorImgSize.width !== nodefine) {
         // 生成错误图片占位
         Object.assign(
           ERROR_IMG,
@@ -656,7 +709,7 @@ function setConfig ({ loadingImg = {}, errorImg = {} } = {}, mode = 'center') {
 // 使用默认配置
 setConfig()
 
-export default class Picture extends React.Component {
+export default class Picture extends Component {
   static setConfig = (...arg) => setConfig(...arg)
 
   static defaultProps = {
@@ -667,7 +720,7 @@ export default class Picture extends React.Component {
     onError () {},
     onLoad () {},
     className () {},
-    group: window,
+    viewport: window,
     style: null,
     mode: 'scaleToFill'
   }
@@ -679,7 +732,7 @@ export default class Picture extends React.Component {
     onError: PropTypes.func,
     onLoad: PropTypes.func,
     className: PropTypes.string,
-    group: PropTypes.object,
+    viewport: PropTypes.object,
     style: PropTypes.object,
     mode: PropTypes.oneOf([
       'scaleToFill',
@@ -699,7 +752,7 @@ export default class Picture extends React.Component {
   }
 
   static contextTypes = {
-    getImageGroup: PropTypes.func
+    getViewport: PropTypes.func
   }
 
   state = { update: 0, configIsReady: false, status: 'unload' }
@@ -724,13 +777,13 @@ export default class Picture extends React.Component {
       onError,
       props: { mode, lazyLoad, src }
     } = this
-    let { group } = this.props
-    const { getImageGroup } = this.context
-    if (typeof getImageGroup === 'function') {
-      // 容器是 scrollViewNode
-      group = getImageGroup()
+    let { viewport } = this.props
+    const { getViewport } = this.context
+    if (typeof getViewport === 'function') {
+      // 上下文有 viewport
+      viewport = getViewport()
     }
-    if (group === null || $self === null) {
+    if (viewport === null || $self === null) {
       // 未准备好
       return
     }
@@ -741,7 +794,7 @@ export default class Picture extends React.Component {
       src,
       lazyLoad,
       $self,
-      $group: group,
+      $viewport: viewport,
       onLoad,
       onLoadStart,
       onError
@@ -819,7 +872,7 @@ export default class Picture extends React.Component {
         'onLoad',
         'src',
         'className',
-        'group'
+        'viewport'
       ].some(
         name => nextProps[name] !== this.props[name]
       )
