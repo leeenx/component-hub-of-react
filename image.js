@@ -321,7 +321,14 @@ class Viewport {
       Object.assign(this.rect, getRect($viewport))
     } else {
       // window 视窗
-      this.load()
+      this.sleep = false
+      // window 滚动条的初始值
+      const { scrollX, scrollY } = window
+      this.x = scrollX
+      this.y = scrollY
+      this.nextX = scrollX
+      this.nextY = scrollY
+      this.update()
     }
     // 监听滚动
     $viewport.addEventListener('scroll', this.handleScroll)
