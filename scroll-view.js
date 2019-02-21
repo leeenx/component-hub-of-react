@@ -18,7 +18,7 @@
  * ariaRole, 与微信小程序的 aria-role 相同
  */
 
-import React, { Component } from 'react'
+import Nerv, { Component } from 'nervjs'
 import PropTypes from 'prop-types'
 
 export default class ScrollView extends Component {
@@ -58,12 +58,12 @@ export default class ScrollView extends Component {
   }
 
   static childContextTypes = {
-    getImageGroup: PropTypes.func
+    getViewport: PropTypes.func
   }
 
   getChildContext () {
     return {
-      getImageGroup: () => this.$self
+      getViewport: () => this.$self
     }
   }
 
@@ -81,7 +81,10 @@ export default class ScrollView extends Component {
     deltaY: 0
   }
 
-  componentDidMount () { this.handleUpdate() }
+  componentDidMount () {
+    this.$self = this.$
+    this.handleUpdate()
+  }
   componentDidUpdate (prevProps) { this.handleUpdate(prevProps) }
   handleUpdate (prevProps = {}) {
     const {
@@ -295,7 +298,7 @@ export default class ScrollView extends Component {
       aria-role={ariaRole}
       aria-label={ariaLabel}
       onScroll={handleScroll}
-      ref={$ => { this.$self = $ }}
+      ref={$ => { this.$ = $ }}
     >
       {children}
     </div>
