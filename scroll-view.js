@@ -18,7 +18,7 @@
  * ariaRole, 与微信小程序的 aria-role 相同
  */
 
-import Nerv, { Component } from 'nervjs'
+import React, { Component } from 'react'
 import PropTypes from 'prop-types'
 
 export default class ScrollView extends Component {
