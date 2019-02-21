@@ -726,7 +726,7 @@ export default class Picture extends Component {
     lazyLoad: false,
     onError () {},
     onLoad () {},
-    className () {},
+    className: '',
     viewport: window,
     style: null,
     mode: 'scaleToFill'
