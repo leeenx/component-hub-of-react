@@ -973,7 +973,8 @@ export default class Picture extends Component {
     const style = Object.assign(
       {
         outline: '0 none',
-        cursor: 'default'
+        cursor: 'default',
+        borderRadius: '0'
       },
       this.props.style,
       {
