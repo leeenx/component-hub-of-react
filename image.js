@@ -18,6 +18,7 @@
  */
 
 import React, { Component } from 'react'
+import { findDOMNode } from 'react-dom'
 import PropTypes from 'prop-types'
 
 const nodefine = (() => {})()
@@ -920,6 +921,7 @@ export default class Picture extends Component {
   componentDidMount () {
     // 生成 ID
     this.id = keyGenerator()
+    this.$self = findDOMNode(this)
     // 挂载成功
     onReady.then(
       () => {
@@ -994,7 +996,6 @@ export default class Picture extends Component {
     return <button
       className={className}
       style={style}
-      ref={ $ => (this.$self = $) }
       title={title}
     >
       {
