@@ -10,15 +10,14 @@
  * 扩展
  * 通过 Image.setConfig({ config }) 来配置一些额外信息
  * config 结构如下：
- * @ loadingImg: { src, mode } ---- 加载中的占位图，src 与 mode 与上面的同名API功能一致
- * @ errorImg: { src, mode } ---- 加载抢购的占位图，src 与 mode 与上面的同名API功能一致
+ * @ loadingImg: { src, mode } ---- 加载中的占位图，src 与 mode 与上面的同名API功能一致，默认是文字占位
+ * @ errorImg: { src, mode } ---- 加载抢购的占位图，src 与 mode 与上面的同名API功能一致，默认是文字占位
  * update，通过改变化 update 值可以更新图片的 boundingClientRect 信息 ---- 如果传入 Date.now，效果同 aways
  * update === 'aways' 每次 render 都会更新图片的 boundingClientRect 信息 ---- 比较耗性能
  * viewport 用于指定图片所在的滚动视窗
  */
 
-import React, { Component } from 'react'
-import { findDOMNode } from 'react-dom'
+import Nerv, { Component } from 'nervjs'
 import PropTypes from 'prop-types'
 
 const nodefine = (() => {})()
@@ -34,6 +33,7 @@ const imageCache = {}
 
 // 加载单图
 function loadImage (src) {
+  if (!src) return Promise.resolve({ width: 100, height: 20 })
   let cache = imageCache[src]
   if (!cache) {
     // 没有缓存
@@ -630,6 +630,7 @@ function getPlaceHold ({ status = 'loading', width, height }) {
   const placehold = status === 'error' ? ERROR_IMG : LOADING_IMG
   const {
     text = '',
+    textStyle = {},
     width: imageWidth,
     height: imageHeight,
     src
@@ -645,7 +646,7 @@ function getPlaceHold ({ status = 'loading', width, height }) {
     imageWidth,
     imageHeight
   })
-  if (text === '') {
+  if (src) {
     // 有图片
     const style = Object.assign(
       {
@@ -659,16 +660,16 @@ function getPlaceHold ({ status = 'loading', width, height }) {
   // 文本
   const style = Object.assign(
     {
-      width: `${imageWidth}px`,
-      height: `${imageHeight}px`,
+      width: `${width}px`,
+      height: `${height}px`,
       lineHeight: `${height}px`,
       whiteSpace: 'nowrap',
       textOverflow: 'ellipsis',
       overflow: 'hidden',
       textAlign: 'center',
-      fontSize: '14px'
-    },
-    fitStyle
+      fontSize: textStyle.fontSize || '14px',
+      color: textStyle.color || '#ccc'
+    }
   )
   return <div style={style}>{text}</div>
 }
@@ -677,17 +678,33 @@ function getPlaceHold ({ status = 'loading', width, height }) {
 let onReady
 
 // 设置配置
+/**
+ * 使用默认封面可以使用
+ * setConfig(
+ *  {
+ *    loadingImg: { src: 'default' }
+ *  }
+ * )
+ */
 function setConfig ({ loadingImg = {}, errorImg = {} } = {}, mode = 'center') {
-  loadingImg = Object.assign(
-    {},
-    { src: DEFAULT_LOADING_IMG.src, mode },
-    loadingImg
-  )
-  errorImg = Object.assign(
-    {},
-    { src: DEFAULT_ERROR_IMG.src, mode },
-    errorImg
-  )
+  if (loadingImg.src === 'default') {
+    loadingImg.src = DEFAULT_LOADING_IMG.src
+  }
+  if (!loadingImg.text) {
+    loadingImg.text = DEFAULT_LOADING_IMG.text
+  }
+  if (!loadingImg.mode) {
+    loadingImg.mode = mode
+  }
+  if (errorImg.src === 'default') {
+    errorImg.src = DEFAULT_ERROR_IMG.src
+  }
+  if (!errorImg.text) {
+    errorImg.text = DEFAULT_ERROR_IMG.text
+  }
+  if (!errorImg.mode) {
+    errorImg.mode = mode
+  }
   onReady = loadImageList(loadingImg.src, errorImg.src)
   // 设置默认的占位图
   onReady.then(
@@ -697,8 +714,7 @@ function setConfig ({ loadingImg = {}, errorImg = {} } = {}, mode = 'center') {
         Object.assign(
           LOADING_IMG,
           loadingImg,
-          loadingImgSize,
-          { text: '' }
+          loadingImgSize
         )
       }
       if (errorImgSize.width !== nodefine) {
@@ -706,8 +722,7 @@ function setConfig ({ loadingImg = {}, errorImg = {} } = {}, mode = 'center') {
         Object.assign(
           ERROR_IMG,
           errorImg,
-          errorImgSize,
-          { text: '' }
+          errorImgSize
         )
       }
     }
@@ -921,7 +936,6 @@ export default class Picture extends Component {
   componentDidMount () {
     // 生成 ID
     this.id = keyGenerator()
-    this.$self = findDOMNode(this)
     // 挂载成功
     onReady.then(
       () => {
@@ -987,7 +1001,8 @@ export default class Picture extends Component {
         '-ms-appearance': 'none',
         '-moz-appearance': 'none',
         '-webkit-appearance': 'none',
-        appearance: 'none'
+        appearance: 'none',
+        'pointer-events': 'none'
       }
     )
 
@@ -996,6 +1011,7 @@ export default class Picture extends Component {
     return <button
       className={className}
       style={style}
+      ref={ $ => (this.$self = $) }
       title={title}
     >
       {
