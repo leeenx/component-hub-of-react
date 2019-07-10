@@ -28,6 +28,13 @@ const keyGenerator = (function () {
   return () => `key-${order++}`
 }())
 
+// 有滚动条的节点
+const ua = navigator.userAgent
+const isSafari = ua.indexOf('Safari') !== -1 && ua.indexOf('Version') !== -1
+const $root = (
+  isSafari ? document.body : document.documentElement
+)
+
 // 图片缓存
 const imageCache = {}
 
@@ -324,11 +331,11 @@ class Viewport {
       // window 视窗
       this.sleep = false
       // window 滚动条的初始值
-      const { scrollX, scrollY } = window
-      this.x = scrollX
-      this.y = scrollY
-      this.nextX = scrollX
-      this.nextY = scrollY
+      const { scrollLeft, scrollTop } = $root
+      this.x = scrollLeft
+      this.y = scrollTop
+      this.nextX = scrollLeft
+      this.nextY = scrollTop
       this.update()
     }
     // 监听滚动
@@ -578,15 +585,22 @@ class Viewport {
 
   handleScroll = () => {
     const {
-      scrollX = 0,
-      scrollY = 0,
       scrollLeft = 0,
       scrollTop = 0
-    } = this.$viewport
-    this.nextX = scrollX || scrollLeft
-    this.nextY = scrollY || scrollTop
+    } = getScrollPosition(this.$viewport)
+    this.nextX = scrollLeft
+    this.nextY = scrollTop
     this.updatePosition()
   }
+}
+
+function getScrollPosition ($el) {
+  $el = (
+    $el === window ?
+      $root : $el
+  )
+  const { scrollTop, scrollLeft } = $el
+  return { scrollTop, scrollLeft }
 }
 
 // 将图片快照存入 viewport
