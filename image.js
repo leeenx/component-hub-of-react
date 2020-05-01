@@ -17,7 +17,7 @@
  * viewport 用于指定图片所在的滚动视窗
  */
 
-import Nerv, { Component } from 'nervjs'
+import React, { Component } from 'react'
 import PropTypes from 'prop-types'
 
 const nodefine = (() => {})()
@@ -31,9 +31,12 @@ const keyGenerator = (function () {
 // 有滚动条的节点
 const ua = navigator.userAgent
 const isSafari = ua.indexOf('Safari') !== -1 && ua.indexOf('Version') !== -1
-const $root = (
-  isSafari ? document.body : document.documentElement
-)
+let $root = document.documentElement
+// 移动端和PC的safari表示不一样所以需要做二次判断
+if (isSafari && typeof window.scrollY !== 'number') {
+    // PC
+    $root = document.body
+}
 
 // 图片缓存
 const imageCache = {}
@@ -563,7 +566,7 @@ class Viewport {
 
       for (let i = startRow; i <= endRow; ++i) {
         for (let j = startCol; j <= endCol; ++j) {
-          this.loadCell(i, j)
+            this.loadCell(i, j)
         }
       }
 
@@ -1012,11 +1015,11 @@ export default class Picture extends Component {
         padding: '0',
         background: 'none',
         overflow: 'hidden',
-        '-ms-appearance': 'none',
-        '-moz-appearance': 'none',
-        '-webkit-appearance': 'none',
+        msAppearance: 'none',
+        MozAppearance: 'none',
+        WebkitAppearance: 'none',
         appearance: 'none',
-        'pointer-events': 'none'
+        pointerEvents: 'none'
       }
     )
 
