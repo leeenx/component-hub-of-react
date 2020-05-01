@@ -963,6 +963,11 @@ export default class Picture extends Component {
     )
   }
 
+  componentWillUnmount () {
+    // 删除节点
+    removeSnapFromViewport(imageSnaps[this.id])
+  }
+
   componentDidUpdate (prevProps) {
     // 更新成功 - 处理 className 和 style 引起的变化
     if (this.state.configIsReady === true) {
