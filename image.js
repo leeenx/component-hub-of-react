@@ -28,15 +28,18 @@ const keyGenerator = (function () {
   return () => `key-${order++}`
 }())
 // 有滚动条的节点
-const ua = navigator.userAgent
-const isSafari = ua.indexOf('Safari') !== -1 && ua.indexOf('Version') !== -1
-const isIos = ua.indexOf('iPhone') !== -1
-let $root = document.documentElement
-// 非 safari 的 ios 环境
-if (!isSafari && isIos) {
-    // PC
-    $root = document.body
-}
+const $root = Object.defineProperties({}, {
+  scrollTop: {
+    get () {
+      return document.body.scrollTop || document.documentElement.scrollTop
+    }
+  },
+  scrollLeft: {
+    get () {
+      return document.body.scrollLeft || document.documentElement.scrollLeft
+    }
+  }
+})
 
 // 图片缓存
 const imageCache = {}
