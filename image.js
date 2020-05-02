@@ -27,13 +27,13 @@ const keyGenerator = (function () {
   let order = 0
   return () => `key-${order++}`
 }())
-
 // 有滚动条的节点
 const ua = navigator.userAgent
 const isSafari = ua.indexOf('Safari') !== -1 && ua.indexOf('Version') !== -1
+const isIos = ua.indexOf('iPhone') !== -1
 let $root = document.documentElement
-// 移动端和PC的safari表示不一样所以需要做二次判断
-if (isSafari && typeof window.scrollY !== 'number') {
+// 非 safari 的 ios 环境
+if (!isSafari && isIos) {
     // PC
     $root = document.body
 }
