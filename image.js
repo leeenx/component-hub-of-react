@@ -17,69 +17,72 @@
  * viewport 用于指定图片所在的滚动视窗
  */
 
-import React, { Component } from 'react'
-import PropTypes from 'prop-types'
+import React, { Component } from 'react';
+import PropTypes from 'prop-types';
 
-const nodefine = (() => {})()
+const nodefine = (() => { })();
 
 // ID 生成器
-const keyGenerator = (function () {
-  let order = 0
-  return () => `key-${order++}`
-}())
+const keyGenerator = (() => {
+  let order = 0;
+  return () => {
+    order += 1;
+    return `key-${order}`;
+  };
+})();
 // 有滚动条的节点
 const $root = Object.defineProperties({}, {
   scrollTop: {
-    get () {
-      return document.body.scrollTop || document.documentElement.scrollTop
+    get() {
+      return document.body.scrollTop || document.documentElement.scrollTop;
     }
   },
   scrollLeft: {
-    get () {
-      return document.body.scrollLeft || document.documentElement.scrollLeft
+    get() {
+      return document.body.scrollLeft || document.documentElement.scrollLeft;
     }
   }
-})
+});
 
 // 图片缓存
-const imageCache = {}
+const imageCache = {};
 
 // 加载单图
-function loadImage (src) {
-  if (!src) return Promise.resolve({ width: 100, height: 20 })
-  let cache = imageCache[src]
+function loadImage(src) {
+  if (!src) return Promise.resolve({ width: 100, height: 20 });
+  let cache = imageCache[src];
   if (!cache) {
     // 没有缓存
     cache = new Promise((resolve, reject) => {
-      const $image = new Image()
+      const $image = new Image();
       $image.onload = () => {
-        const { naturalWidth: width, naturalHeight: height } = $image
-        resolve({ width, height })
-      }
+        const { naturalWidth: width, naturalHeight: height } = $image;
+        resolve({ width, height });
+      };
       $image.onerror = e => {
-        reject(e)
-      }
-      $image.src = src
+        reject(e);
+      };
+      $image.src = src;
     })
-    imageCache[src] = cache
+    imageCache[src] = cache;
   }
-  return cache
+  return cache;
 }
 
 // 加载图片列表
-function loadImageList (...list) {
-  return Promise.all(list.map(src => loadImage(src)))
+function loadImageList(...list) {
+  return Promise.all(list.map(src => loadImage(src)));
 }
 
 // 按 mode 显示图片，返回结果样式
-function fitImage (options) {
+function fitImage(options) {
   const {
     mode,
     width,
     height,
     imageWidth,
     imageHeight
-  } = options
+  } = options;
 
   if (
     width === 0 ||
@@ -88,12 +91,12 @@ function fitImage (options) {
     imageHeight === 0
   ) {
     // 无需要处理
-    return {}
+    return {};
   }
 
-  const imageRatio = imageHeight / imageWidth
-  const ratio = height / width
-  let style = {}
+  const imageRatio = imageHeight / imageWidth;
+  const ratio = height / width;
+  let style = {};
 
   switch (mode) {
     case 'aspectFit':
@@ -105,7 +108,7 @@ function fitImage (options) {
           height: `${height}px`,
           marginTop: 0,
           marginLeft: `${(width - (height / imageRatio)) / 2}px`
-        }
+        };
       } else {
         // 图片比容器扁
         style = {
@@ -114,9 +117,9 @@ function fitImage (options) {
           height: `${width * imageRatio}px`,
           marginTop: 0,
           marginLeft: 0
-        }
+        };
       }
-      break
+      break;
     case 'aspectFill':
       if (imageRatio > ratio) {
         // 图片比容器长
@@ -126,7 +129,7 @@ function fitImage (options) {
           height: `${width * imageRatio}px`,
           marginTop: `${(height - (width * imageRatio)) / 2}px`,
           marginLeft: 0
-        }
+        };
       } else {
         // 图片比窗口扁
         style = {
@@ -135,9 +138,9 @@ function fitImage (options) {
           height: `${height}px`,
           marginTop: 0,
           marginLeft: `${(width - (height / imageRatio)) / 2}px`
-        }
+        };
       }
-      break
+      break;
     case 'widthFix':
       style = {
         display: 'block',
@@ -147,8 +150,8 @@ function fitImage (options) {
           imageRatio > ratio ?
             0 : `${((width * imageRatio) - height) / 2}px`,
         marginLeft: 0
-      }
-      break
+      };
+      break;
     case 'top':
       style = {
         display: 'block',
@@ -156,8 +159,8 @@ function fitImage (options) {
           imageRatio > ratio ?
             0 : `${(imageHeight - height) / 2}px`,
         marginLeft: `${(width - imageWidth) / 2}px`
-      }
-      break
+      };
+      break;
     case 'bottom':
       style = {
         display: 'block',
@@ -166,8 +169,8 @@ function fitImage (options) {
             `${height - imageHeight}px` :
             `${(height - imageHeight) / 2}px`,
         marginLeft: `${(width - imageWidth) / 2}px`
-      }
-      break
+      };
+      break;
     case 'center':
       style = {
         display: 'block',
@@ -175,8 +178,8 @@ function fitImage (options) {
           imageHeight > height ?
             `${(height - imageHeight) / 2}px` : 0,
         marginLeft: `${(width - imageWidth) / 2}px`
-      }
-      break
+      };
+      break;
     case 'left':
       style = {
         display: 'block',
@@ -184,8 +187,8 @@ function fitImage (options) {
           imageHeight > height ?
             `${(height - imageHeight) / 2}px` : 0,
         marginLeft: 0
-      }
-      break
+      };
+      break;
     case 'right':
       style = {
         display: 'block',
@@ -193,8 +196,8 @@ function fitImage (options) {
           imageHeight > height ?
             `${(height - imageHeight) / 2}px` : 0,
         marginLeft: `${width - imageWidth}px`
-      }
-      break
+      };
+      break;
     case 'top left':
       style = {
         display: 'block',
@@ -202,8 +205,8 @@ function fitImage (options) {
           imageHeight > height ?
             0 : `${(imageHeight - height) / 2}px`,
         marginLeft: 0
-      }
-      break
+      };
+      break;
     case 'top right':
       style = {
         display: 'block',
@@ -211,8 +214,8 @@ function fitImage (options) {
           imageHeight > height ?
             0 : `${(imageHeight - height) / 2}px`,
         marginLeft: `${width - imageWidth}px`
-      }
-      break
+      };
+      break;
     case 'bottom left':
       style = {
         display: 'block',
@@ -221,8 +224,8 @@ function fitImage (options) {
             `${height - imageHeight}px` :
             `${(height - imageHeight) / 2}px`,
         marginLeft: 0
-      }
-      break
+      };
+      break;
     case 'bottom right':
       style = {
         display: 'block',
@@ -231,24 +234,24 @@ function fitImage (options) {
             `${height - imageHeight}px` :
             `${(height - imageHeight) / 2}px`,
         marginLeft: `${width - imageWidth}px`
-      }
-      break
+      };
+      break;
     case 'scaleToFill':
     default:
       style = {
         display: 'block',
         width: `${width}px`,
         height: `${height}px`
-      }
+      };
   }
-  return style
+  return style;
 }
 
 // 图片快照
-const imageSnaps = {}
+const imageSnaps = {};
 
 // 注册图片
-function register ({
+function register({
   id,
   mode,
   $self,
@@ -259,24 +262,24 @@ function register ({
   onLoadStart,
   onError
 }) {
-  const prevSnap = imageSnaps[id]
+  const prevSnap = imageSnaps[id];
   // 是否需要重新生成快照
-  let needNewSnap = prevSnap === nodefine
+  let needNewSnap = prevSnap === nodefine;
   if (needNewSnap === false) {
     if (src !== prevSnap.src) {
       // 「路径」变了，表示快照需要重新生成
-      needNewSnap = true
+      needNewSnap = true;
     }
     if (
       src !== prevSnap.src ||
       $viewport !== prevSnap.$viewport
     ) {
       // 「路径」或「组」有变化，从组中删除
-      removeSnapFromViewport(prevSnap)
+      removeSnapFromViewport(prevSnap);
     }
   }
   if (needNewSnap === true) {
-    const rect = {}
+    const rect = {};
     // 创建新的快照
     imageSnaps[id] = {
       id,
@@ -287,147 +290,163 @@ function register ({
       $viewport,
       rect,
       status: 'unload',
-      load () {
+      load() {
         if (this.status !== 'unload') {
-          return
+          return;
         }
-        this.status = 'loading'
-        onLoadStart(rect)
+        this.status = 'loading';
+        onLoadStart(rect);
         loadImage(src)
           .then(
             imageRect => onLoad(imageRect)
           )
-          .catch(() => onError())
+          .catch(() => onError());
       }
     }
   }
-  const snap = imageSnaps[id]
+  const snap = imageSnaps[id];
   // 生成/更新自己的 boundingRect
-  Object.assign(snap.rect, getRect($self))
+  Object.assign(snap.rect, getRect($self));
   // 将快照加到对应的viewport
-  addSnapToViewport(snap)
-  return snap.rect
+  addSnapToViewport(snap);
+  return snap.rect;
 }
 
-function getRect ($el) {
-  const { top, left, width, height } = $el.getBoundingClientRect()
-  return { top, left, width, height }
+function getRect($el) {
+  const { top, left, width, height } = $el.getBoundingClientRect();
+  return { top, left, width, height };
 }
 
 // 按 viewport 来存图片快照
-const viewportGroup = new Map()
+const viewportGroup = new Map();
 
 // viewport 对象
 class Viewport {
-  static waitTime = 300
-  static has = (...arg) => viewportGroup.has(...arg)
-  static set = (...arg) => viewportGroup.set(...arg)
-  static get = (...arg) => viewportGroup.get(...arg)
-  constructor ($viewport) {
-    this.$viewport = $viewport
-    const { has, set, get } = Viewport
+  static waitTime = 300;
+
+  static has = (...arg) => viewportGroup.has(...arg);
+
+  static set = (...arg) => viewportGroup.set(...arg);
+
+  static get = (...arg) => viewportGroup.get(...arg);
+
+  constructor($viewport) {
+    this.$viewport = $viewport;
+    const { has, set, get } = Viewport;
     // 将 viewport 存入 viewportGroup 中
-    set($viewport, this)
+    set($viewport, this);
     if ($viewport !== window) {
       // 将布局的 viewport 视作一个 snap 存入到全局视窗 window 中
-      const globalViewport = has(window) ? get(window) : new Viewport(window)
-      globalViewport.addSnap(this)
-      Object.assign(this.rect, getRect($viewport))
+      const globalViewport = has(window) ? get(window) : new Viewport(window);
+      globalViewport.addSnap(this);
+      Object.assign(this.rect, getRect($viewport));
     } else {
       // window 视窗
-      this.sleep = false
+      this.sleep = false;
       // window 滚动条的初始值
-      const { scrollLeft, scrollTop } = $root
-      this.x = scrollLeft
-      this.y = scrollTop
-      this.nextX = scrollLeft
-      this.nextY = scrollTop
-      this.update()
+      const { scrollLeft, scrollTop } = $root;
+      this.x = scrollLeft;
+      this.y = scrollTop;
+      this.nextX = scrollLeft;
+      this.nextY = scrollTop;
+      this.update();
     }
     // 监听滚动
-    $viewport.addEventListener('scroll', this.handleScroll)
+    $viewport.addEventListener('scroll', this.handleScroll);
   }
-  x = 0
-  y = 0
-  nextX = 0
-  nextY = 0
-  wait = false
-  id = keyGenerator()
-  sleep = true
-  lazyLoad = true
-  rect = {}
+
+  x = 0;
+
+  y = 0;
+
+  nextX = 0;
+
+  nextY = 0;
+
+  wait = false;
+
+  id = keyGenerator();
+
+  sleep = true;
+
+  lazyLoad = true;
+
+  rect = {};
+
   // 未处理过的快照集
-  rawSnaps = {}
+  rawSnaps = {};
+
   // 处理过的快照集
-  refinedSnaps = {}
+  refinedSnaps = {};
+
   // 分屏网格
-  grid = []
+  grid = [];
 
   // snap 添加到 view
-  addSnap (snap) {
-    const { id } = snap
+  addSnap(snap) {
+    const { id } = snap;
     // 收集原始快照
-    this.rawSnaps[id] = snap
+    this.rawSnaps[id] = snap;
     if (this.sleep === false) {
       // 自动更新
-      this.update()
+      this.update();
     }
   }
 
   // 移除 snap
-  removeSnap (snap) {
-    const { id } = snap
-    delete this.refinedSnaps[id]
+  removeSnap(snap) {
+    const { id } = snap;
+    delete this.refinedSnaps[id];
   }
 
   // 填充网格的单元格
-  setCell (row, col, snap) {
+  setCell(row, col, snap) {
     if (
       row >= 0 &&
       col >= 0 &&
       (snap.status === 'unload' || snap.sleep === true)
     ) {
-      const { grid } = this
+      const { grid } = this;
       if (grid[row] === nodefine) {
-        grid[row] = []
+        grid[row] = [];
       }
       if (grid[row][col] === nodefine) {
-        grid[row][col] = []
+        grid[row][col] = [];
       }
-      grid[row][col].push(snap)
+      grid[row][col].push(snap);
     }
   }
 
   // 取消睡眠模式
-  load () {
-    this.update(true)
+  load() {
+    this.update(true);
   }
 
   // 加载单元格的快照
-  loadCell (row, col) {
-    const { grid } = this
+  loadCell(row, col) {
+    const { grid } = this;
     if (
       grid[row] === nodefine ||
       grid[row][col] === nodefine ||
       grid[row][col].length === 0
     ) {
       // 单元格下没有图片
-      return
+      return;
     }
-    const cell = grid[row][col]
-    cell.forEach(this.loadSnap)
+    const cell = grid[row][col];
+    cell.forEach(this.loadSnap);
     // 清空单元格
-    cell.length = []
+    cell.length = [];
   }
 
   // 加载快照
   loadSnap = snap => {
-    snap.load()
-    this.removeSnap(snap)
+    snap.load();
+    this.removeSnap(snap);
   }
 
   // 更新网络
-  updateGrid () {
+  updateGrid() {
     const {
       rawSnaps,
       refinedSnaps,
@@ -440,62 +459,62 @@ class Viewport {
         width,
         height
       }
-    } = this
+    } = this;
     // 清空网格
-    grid.length = []
+    grid.length = [];
     // 将 rawSnaps 处理一下
     for (const name in rawSnaps) {
-      const rawSnap = rawSnaps[name]
+      const rawSnap = rawSnaps[name];
       const {
         rect: {
           top: snapTop = 0,
           left: snapLeft = 0
         }
-      } = rawSnap
+      } = rawSnap;
       // 获取相对于父容器的定位
-      rawSnap.rect.top = snapTop - top + y
-      rawSnap.rect.left = snapLeft - left + x
+      rawSnap.rect.top = snapTop - top + y;
+      rawSnap.rect.left = snapLeft - left + x;
       // 删除当前项
-      refinedSnaps[name] = rawSnap
-      delete rawSnaps[name]
+      refinedSnaps[name] = rawSnap;
+      delete rawSnaps[name];
     }
     for (const name in refinedSnaps) {
-      const snap = refinedSnaps[name]
+      const snap = refinedSnaps[name];
       if (snap.lazyLoad === false) {
         // 直接加载图片
-        this.loadSnap(snap)
-        continue
-      }
-      const {
-        rect: {
-          width: snapWidth = 0,
-          height: snapHeight = 0,
-          top: snapTop = 0,
-          left: snapLeft = 0
-        }
-      } = snap
-      // 一张图片可以会有跨度
-      const startRow = Math.floor(snapTop / height)
-      const endRow = Math.floor((snapTop + snapHeight) / height)
-      const startCol = Math.floor(snapLeft / width)
-      const endCol = Math.floor((snapLeft + snapWidth) / width)
-      for (let row = startRow; row <= endRow; ++row) {
-        for (let col = startCol; col <= endCol; ++col) {
-          this.setCell(row, col, snap)
+        this.loadSnap(snap);
+      } else {
+        const {
+          rect: {
+            width: snapWidth = 0,
+            height: snapHeight = 0,
+            top: snapTop = 0,
+            left: snapLeft = 0
+          }
+        } = snap;
+        // 一张图片可以会有跨度
+        const startRow = Math.floor(snapTop / height);
+        const endRow = Math.floor((snapTop + snapHeight) / height);
+        const startCol = Math.floor(snapLeft / width);
+        const endCol = Math.floor((snapLeft + snapWidth) / width);
+        for (let row = startRow; row <= endRow; ++row) {
+          for (let col = startCol; col <= endCol; ++col) {
+            this.setCell(row, col, snap);
+          }
         }
       }
     }
   }
 
   // viewport 更新
-  update (wakeup = true) {
+  update(wakeup = true) {
     // 等待更新中
-    if (this.updating === true) return
+    if (this.updating === true) return;
     // 更新合并
-    this.updating = true
+    this.updating = true;
     Promise.resolve().then(
       () => {
-        const { $viewport } = this
+        const { $viewport } = this;
         // 更新 $viewport 的 boundingRect
         if ($viewport === window) {
           // 全局 viewport
@@ -506,37 +525,37 @@ class Viewport {
             height: document.documentElement.clientHeight
           }
           // 全局没有睡眠状态
-          this.sleep = false
+          this.sleep = false;
         } else {
           // 局部 viewport
-          const { top: prevTop, left: prevLeft } = this.rect
-          this.rect = getRect($viewport)
+          const { top: prevTop, left: prevLeft } = this.rect;
+          this.rect = getRect($viewport);
           // 唤醒操作
           if (this.sleep && wakeup) {
-            this.sleep = false
-            const { top: currentTop, left: currentLeft } = this.rect
-            const offsetTop = currentTop - prevTop
-            const offsetLeft = currentLeft - prevLeft
+            this.sleep = false;
+            const { top: currentTop, left: currentLeft } = this.rect;
+            const offsetTop = currentTop - prevTop;
+            const offsetLeft = currentLeft - prevLeft;
             // 更新 viewport 下的 snap.rect
-            const { rawSnaps } = this
+            const { rawSnaps } = this;
             for (const name in rawSnaps) {
-              const rawSnap = rawSnaps[name]
-              rawSnap.rect.top += offsetTop
-              rawSnap.rect.left += offsetLeft
+              const rawSnap = rawSnaps[name];
+              rawSnap.rect.top += offsetTop;
+              rawSnap.rect.left += offsetLeft;
             }
           }
         }
-        this.updateGrid()
-        this.wait = false
-        this.updating = false
+        this.updateGrid();
+        this.wait = false;
+        this.updating = false;
         // 滚动条坐标
-        this.updatePosition()
+        this.updatePosition();
       }
-    )
+    );
   }
 
   // 更新滚动位置
-  updatePosition () {
+  updatePosition() {
     const {
       sleep,
       wait,
@@ -548,44 +567,43 @@ class Viewport {
         width,
         height
       }
-    } = this
+    } = this;
     // 睡眠状态（即 viewport 未进入可见范围）
-    if (sleep) return
-    const waitTime = Viewport.waitTime
+    if (sleep) return;
+    const { waitTime } = Viewport;
     if (wait === false) {
       // 非等待中
-      this.wait = true
-      this.x = nextX
-      this.y = nextY
+      this.wait = true;
+      this.x = nextX;
+      this.y = nextY;
 
       // 按屏加载
-      const row = nextY / height
-      const col = nextX / width
+      const row = nextY / height;
+      const col = nextX / width;
 
-      const startRow = Math.floor(row)
-      const endRow = Math.ceil(row)
-      const startCol = Math.floor(col)
-      const endCol = Math.ceil(col)
+      const startRow = Math.floor(row);
+      const endRow = Math.ceil(row);
+      const startCol = Math.floor(col);
+      const endCol = Math.ceil(col);
 
       for (let i = startRow; i <= endRow; ++i) {
         for (let j = startCol; j <= endCol; ++j) {
-            this.loadCell(i, j)
+          this.loadCell(i, j);
         }
       }
 
       // 节流
       setTimeout(
         () => {
-          this.wait = false
+          this.wait = false;
           // 实时取 nextX & nextY
-          const { nextX, nextY } = this
-          if (x !== nextX || y !== nextY) {
+          if (x !== this.nextX || y !== this.nextY) {
             // 需要更新滚动位置
-            this.updatePosition()
+            this.updatePosition();
           }
         },
         waitTime
-      )
+      );
     }
   }
 
@@ -593,38 +611,35 @@ class Viewport {
     const {
       scrollLeft = 0,
       scrollTop = 0
-    } = getScrollPosition(this.$viewport)
-    this.nextX = scrollLeft
-    this.nextY = scrollTop
-    this.updatePosition()
+    } = getScrollPosition(this.$viewport);
+    this.nextX = scrollLeft;
+    this.nextY = scrollTop;
+    this.updatePosition();
   }
 }
 
-function getScrollPosition ($el) {
-  $el = (
-    $el === window ?
-      $root : $el
-  )
-  const { scrollTop, scrollLeft } = $el
-  return { scrollTop, scrollLeft }
+function getScrollPosition($el) {
+  const $target = $el === window ? $root : $el;
+  const { scrollTop, scrollLeft } = $target;
+  return { scrollTop, scrollLeft };
 }
 
 // 将图片快照存入 viewport
-function addSnapToViewport (snap) {
-  const { $viewport } = snap
-  const { has, get } = Viewport
+function addSnapToViewport(snap) {
+  const { $viewport } = snap;
+  const { has, get } = Viewport;
   const viewport = (
     has($viewport) ? get($viewport) : new Viewport($viewport)
-  )
-  viewport.addSnap(snap)
+  );
+  viewport.addSnap(snap);
 }
 
 // 将图片快照从 viewport 中删除
-function removeSnapFromViewport (snap) {
-  const { $viewport } = snap
+function removeSnapFromViewport(snap) {
+  const { $viewport } = snap;
   if (viewportGroup.has($viewport)) {
-    const viewport = viewportGroup.get($viewport)
-    viewport.removeSnap(snap)
+    const viewport = viewportGroup.get($viewport);
+    viewport.removeSnap(snap);
   }
 }
 
@@ -634,30 +649,30 @@ const DEFAULT_LOADING_IMG = {
   src: '//img11.360buyimg.com/jdphoto/s140x50_jfs/t1/11451/23/6841/1341/5c46da77E959ff92c/78447dc0b12d097c.png',
   width: 100,
   height: 100
-}
+};
 const DEFAULT_ERROR_IMG = {
   text: '加载失败',
   src: '//img11.360buyimg.com/jdphoto/s150x129_jfs/t1/25294/11/986/1390/5c0e7d65E9b96ef95/f9472bc971ba1673.png',
   width: 100,
   height: 100
-}
+};
 
 // 当前使用的占位图片
-const LOADING_IMG = {}
-const ERROR_IMG = {}
+const LOADING_IMG = {};
+const ERROR_IMG = {};
 
-function getPlaceHold ({ status = 'loading', width, height }) {
-  const placehold = status === 'error' ? ERROR_IMG : LOADING_IMG
+function getPlaceHold({ status = 'loading', width, height }) {
+  const placehold = status === 'error' ? ERROR_IMG : LOADING_IMG;
   const {
     text = '',
     textStyle = {},
     width: imageWidth,
     height: imageHeight,
     src
-  } = placehold
-  let { mode = 'center' } = placehold
+  } = placehold;
+  let { mode = 'center' } = placehold;
   if (width < imageWidth || height < imageHeight) {
-    mode = 'aspectFit'
+    mode = 'aspectFit';
   }
   const fitStyle = fitImage({
     mode,
@@ -665,7 +680,7 @@ function getPlaceHold ({ status = 'loading', width, height }) {
     height,
     imageWidth,
     imageHeight
-  })
+  });
   if (src) {
     // 有图片
     const style = Object.assign(
@@ -675,7 +690,7 @@ function getPlaceHold ({ status = 'loading', width, height }) {
       },
       fitStyle
     )
-    return <img style={style} src={src} />
+    return <img style={style} src={src} alt='' />;
   }
   // 文本
   const style = Object.assign(
@@ -690,12 +705,12 @@ function getPlaceHold ({ status = 'loading', width, height }) {
       fontSize: textStyle.fontSize || '14px',
       color: textStyle.color || '#ccc'
     }
-  )
-  return <div style={style}>{text}</div>
+  );
+  return <div style={style}>{text}</div>;
 }
 
 // 表示 loadingImg 与 errorImg 已经处理
-let onReady
+let onReady;
 
 // 设置配置
 /**
@@ -706,26 +721,26 @@ let onReady
  *  }
  * )
  */
-function setConfig ({ loadingImg = {}, errorImg = {} } = {}, mode = 'center') {
+function setConfig({ loadingImg = {}, errorImg = {} } = {}, mode = 'center') {
   if (loadingImg.src === 'default') {
-    loadingImg.src = DEFAULT_LOADING_IMG.src
+    loadingImg.src = DEFAULT_LOADING_IMG.src;
   }
   if (!loadingImg.text) {
-    loadingImg.text = DEFAULT_LOADING_IMG.text
+    loadingImg.text = DEFAULT_LOADING_IMG.text;
   }
   if (!loadingImg.mode) {
-    loadingImg.mode = mode
+    loadingImg.mode = mode;
   }
   if (errorImg.src === 'default') {
-    errorImg.src = DEFAULT_ERROR_IMG.src
+    errorImg.src = DEFAULT_ERROR_IMG.src;
   }
   if (!errorImg.text) {
-    errorImg.text = DEFAULT_ERROR_IMG.text
+    errorImg.text = DEFAULT_ERROR_IMG.text;
   }
   if (!errorImg.mode) {
-    errorImg.mode = mode
+    errorImg.mode = mode;
   }
-  onReady = loadImageList(loadingImg.src, errorImg.src)
+  onReady = loadImageList(loadingImg.src, errorImg.src);
   // 设置默认的占位图
   onReady.then(
     ([loadingImgSize, errorImgSize]) => {
@@ -735,7 +750,7 @@ function setConfig ({ loadingImg = {}, errorImg = {} } = {}, mode = 'center') {
           LOADING_IMG,
           loadingImg,
           loadingImgSize
-        )
+        );
       }
       if (errorImgSize.width !== nodefine) {
         // 生成错误图片占位
@@ -743,34 +758,33 @@ function setConfig ({ loadingImg = {}, errorImg = {} } = {}, mode = 'center') {
           ERROR_IMG,
           errorImg,
           errorImgSize
-        )
+        );
       }
     }
   )
 }
 
 // 使用默认配置
-setConfig()
+setConfig();
 
 export default class Picture extends Component {
-  static setConfig = (...arg) => setConfig(...arg)
+  static setConfig = (...arg) => setConfig(...arg);
 
   static defaultProps = {
     src: '',
     title: '',
-    alt: '',
     lazyLoad: false,
-    onError () {},
-    onLoad () {},
+    onError() { },
+    onLoad() { },
     className: '',
     viewport: window,
     style: null,
     mode: 'scaleToFill'
-  }
+  };
+
   static propTypes = {
     src: PropTypes.string,
     title: PropTypes.string,
-    alt: PropTypes.string,
     lazyLoad: PropTypes.bool,
     onError: PropTypes.func,
     onLoad: PropTypes.func,
@@ -792,26 +806,30 @@ export default class Picture extends Component {
       'bottom left',
       'bottom right'
     ])
-  }
+  };
 
   static contextTypes = {
     getViewport: PropTypes.func
-  }
+  };
 
-  state = { update: 0, configIsReady: false, status: 'unload' }
-  $self = null
+  state = { update: 0, configIsReady: false, status: 'unload' };
+
+  $self = null;
+
   // 容器边界
-  rect = {}
+  rect = {};
+
   // 原生图片尺寸
-  size = {}
+  size = {};
 
   // 更新渲染
-  updateRender () {
-    this.setState({ update: this.state.update + 1 })
+  updateRender() {
+    const { update } = this.state;
+    this.setState({ update: update + 1 });
   }
 
   // 初始化图片
-  updateImage () {
+  updateImage() {
     const {
       id,
       $self,
@@ -819,16 +837,16 @@ export default class Picture extends Component {
       onLoadStart,
       onError,
       props: { mode, lazyLoad, src }
-    } = this
-    let { viewport } = this.props
-    const { getViewport } = this.context
+    } = this;
+    let { viewport } = this.props;
+    const { getViewport } = this.context;
     if (typeof getViewport === 'function') {
       // 上下文有 viewport
-      viewport = getViewport()
+      viewport = getViewport();
     }
     if (viewport === null || $self === null) {
       // 未准备好
-      return
+      return;
     }
     // 将图片按 id 号注册
     const rect = register({
@@ -841,32 +859,34 @@ export default class Picture extends Component {
       onLoad,
       onLoadStart,
       onError
-    })
-    this.onRectComputed(rect)
+    });
+    this.onRectComputed(rect);
   }
 
   // 进入加载状态
   onLoadStart = () => {
-    this.setState({ status: 'loading' })
+    this.setState({ status: 'loading' });
   }
 
   // 加载成功
   onLoad = ({ width, height }) => {
-    this.props.onLoad({ height, width })
+    const { onLoad } = this.props;
+    onLoad({ height, width });
     // 记录图片的原生尺寸
-    this.size = { width, height }
-    this.setState({ status: 'loaded' })
+    this.size = { width, height };
+    this.setState({ status: 'loaded' });
   }
 
   // 加载失败
   onError = errMsg => {
-    this.props.onError({ errMsg })
-    this.setState({ status: 'error' })
+    const { onError } = this.props;
+    onError({ errMsg });
+    this.setState({ status: 'error' });
   }
 
   // 在容器节点执行 getBoundingClientRect 后触发
-  onRectComputed (rect) {
-    const { width, height, top, left } = this.rect
+  onRectComputed(rect) {
+    const { width, height, top, left } = this.rect;
     if (
       width !== rect.width ||
       height !== rect.height ||
@@ -874,39 +894,42 @@ export default class Picture extends Component {
       left !== rect.left
     ) {
       // 尺寸有变化
-      Object.assign(this.rect, rect)
+      Object.assign(this.rect, rect);
       // 更新渲染
-      this.updateRender()
+      this.updateRender();
     }
   }
 
-  getImage () {
+  getImage() {
     // 初始配置还没完成，直接返回空
-    if (this.configIsReady === false) return null
-    const { status } = this.state
-    const { width = 0, height = 0 } = this.rect
-    const { width: imageWidth = 0, height: imageHeight = 0 } = this.size
-    const { mode, src } = this.props
+    if (this.configIsReady === false) return null;
+    const { status } = this.state;
+    const { width = 0, height = 0 } = this.rect;
+    const { width: imageWidth = 0, height: imageHeight = 0 } = this.size;
+    const { mode, src } = this.props;
     switch (status) {
       case 'loaded': {
-        const style = fitImage({ mode, width, height, imageWidth, imageHeight })
-        return <img src={src} style={style} />
+        const style = fitImage({ mode, width, height, imageWidth, imageHeight });
+        return <img src={src} style={style} alt='' />;
       }
       case 'error':
       case 'unload':
       case 'loading':
-        return getPlaceHold({ status, width, height })
+      default:
+        return getPlaceHold({ status, width, height });
     }
   }
 
 
-  shouldComponentUpdate (nextProps, nextState) {
+  shouldComponentUpdate(nextProps, nextState) {
+    const { update, status, configIsReady } = this.state;
+    const currProps = this.props;
     // 针对下以 props 进行判断
     let needRender = (
-      nextState.update !== this.state.update ||
-      nextState.status !== this.state.status ||
-      nextState.configIsReady !== this.state.configIsReady
-    )
+      nextState.update !== update ||
+      nextState.status !== status ||
+      nextState.configIsReady !== configIsReady
+    );
     if (needRender === false) {
       needRender = [
         'mode',
@@ -917,75 +940,76 @@ export default class Picture extends Component {
         'className',
         'viewport'
       ].some(
-        name => nextProps[name] !== this.props[name]
-      )
+        name => nextProps[name] !== currProps[name]
+      );
     }
     if (needRender === false) {
-      const { style } = this.props
-      const { nextStyle = {} } = nextProps
+      const { style } = this.props;
+      const { nextStyle = {} } = nextProps;
       for (const key in style) {
         if (style[key] !== nextStyle[key]) {
-          needRender = true
-          break
+          needRender = true;
+          break;
         }
       }
     }
     if (needRender === false) {
-      const { style } = this.props
-      const { nextStyle = {} } = nextProps
+      const { style } = this.props;
+      const { nextStyle = {} } = nextProps;
       for (const key in nextStyle) {
         if (style[key] !== nextStyle[key]) {
-          needRender = true
-          break
+          needRender = true;
+          break;
         }
       }
     }
     if (
       needRender === false &&
       (
-        this.props.update !== nextProps.update ||
-        this.props.update === 'aways'
+        currProps.update !== nextProps.update ||
+        nextProps.update === 'aways'
       )
     ) {
       // 只需要更新图片的信息
-      this.updateImage()
+      this.updateImage();
     }
-    return needRender
+    return needRender;
   }
 
-  componentDidMount () {
+  componentDidMount() {
     // 生成 ID
-    this.id = keyGenerator()
+    this.id = keyGenerator();
     // 挂载成功
     onReady.then(
       () => {
         // 在显示 placehold 之前，计算图片的尺寸
-        this.updateImage()
-        this.setState({ configIsReady: true })
+        this.updateImage();
+        this.setState({ configIsReady: true });
       }
-    )
+    );
   }
 
-  componentWillUnmount () {
+  componentWillUnmount() {
     // 删除节点
-    removeSnapFromViewport(imageSnaps[this.id])
+    removeSnapFromViewport(imageSnaps[this.id]);
   }
 
-  componentDidUpdate (prevProps) {
+  componentDidUpdate(prevProps) {
+    const { configIsReady } = this.state;
     // 更新成功 - 处理 className 和 style 引起的变化
-    if (this.state.configIsReady === true) {
-      const { update, className, style = {} } = this.props
-      const { prevStyle = {} } = prevProps
-      let needUpdateImage = prevProps.className !== className
-      if (update !== prevProps.update || update === 'aways') {
-        needUpdateImage = true
+    if (configIsReady === true) {
+      const { update, src, className, style = {} } = this.props;
+      const { prevStyle = {} } = prevProps;
+      let needUpdateImage = prevProps.className !== className;
+      if (prevProps.src !== src || update !== prevProps.update || update === 'aways') {
+        needUpdateImage = true;
       }
       if (needUpdateImage === false) {
         // 对比 style 方法
         for (const key in style) {
           if (style[key] !== prevStyle[key]) {
-            needUpdateImage = true
-            break
+            needUpdateImage = true;
+            break;
           }
         }
       }
@@ -993,23 +1017,24 @@ export default class Picture extends Component {
         // 对比 style 方法
         for (const key in prevStyle) {
           if (style[key] !== prevStyle[key]) {
-            needUpdateImage = true
-            break
+            needUpdateImage = true;
+            break;
           }
         }
       }
       if (needUpdateImage === true) {
         // 更新图片
-        this.updateImage()
+        this.updateImage();
       }
     }
   }
 
-  render () {
+  render() {
     const {
       title,
-      className
-    } = this.props
+      className,
+      style: propsStyle
+    } = this.props;
     // 保证模拟器样式
     const style = Object.assign(
       {
@@ -1017,7 +1042,7 @@ export default class Picture extends Component {
         cursor: 'default',
         borderRadius: '0'
       },
-      this.props.style,
+      propsStyle,
       {
         border: '0 none',
         padding: '0',
@@ -1029,19 +1054,20 @@ export default class Picture extends Component {
         appearance: 'none',
         pointerEvents: 'none'
       }
-    )
+    );
 
-    const $image = this.getImage()
+    const $image = this.getImage();
 
     return <button
+      type='button'
       className={className}
       style={style}
-      ref={ $ => (this.$self = $) }
+      ref={$ => { this.$self = $ }}
       title={title}
     >
       {
         $image
       }
-    </button>
+    </button>;
   }
 }
